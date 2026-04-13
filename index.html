@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monopoly Party Edition</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <h1>MONOPOLY <span>Party Edition</span></h1>
+        <button id="restartBtn" class="btn ghost">Restart Game</button>
+      </header>
+
+      <section id="setupPanel" class="panel">
+        <h2>Game Setup</h2>
+        <p>Play locally with friends/family on one PC (hot-seat multiplayer).</p>
+        <div class="row">
+          <label for="playerCount">Players</label>
+          <select id="playerCount">
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4" selected>4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+          </select>
+        </div>
+        <div id="nameInputs" class="name-inputs"></div>
+        <button id="startBtn" class="btn primary">Start Match</button>
+      </section>
+
+      <main class="layout hidden" id="gameLayout">
+        <section class="panel board-panel">
+          <h2>Board</h2>
+          <div id="board" class="board"></div>
+        </section>
+
+        <aside class="sidebar">
+          <section class="panel">
+            <h2>Turn</h2>
+            <div id="turnInfo"></div>
+            <div class="actions">
+              <button id="rollBtn" class="btn primary">Roll Dice</button>
+              <button id="endBtn" class="btn" disabled>End Turn</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2>Players</h2>
+            <div id="playersPanel"></div>
+          </section>
+
+          <section class="panel">
+            <h2>Activity Log</h2>
+            <div id="log" class="log"></div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <dialog id="decisionModal">
+      <h3 id="modalTitle"></h3>
+      <p id="modalText"></p>
+      <div class="modal-actions">
+        <button id="modalNo" class="btn ghost">No</button>
+        <button id="modalYes" class="btn primary">Yes</button>
+      </div>
+    </dialog>
+
+    <script src="script.js"></script>
+  </body>
+</html>
