@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monopoly — Family Edition</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar glass">
+        <div>
+          <p class="eyebrow">Premium Local Multiplayer</p>
+          <h1>MONOPOLY</h1>
+        </div>
+        <div class="top-actions">
+          <button id="musicBtn" class="btn subtle">🎷 Jazz On</button>
+          <button id="rulesBtn" class="btn subtle">Rules</button>
+          <button id="restartBtn" class="btn subtle">Restart</button>
+        </div>
+      </header>
+
+      <section id="setupPanel" class="panel glass">
+        <h2>Start a Game</h2>
+        <p class="muted">Designed for table play on a single PC. Pass the turn naturally, like a real board game.</p>
+        <div class="setup-grid">
+          <label for="playerCount">Players</label>
+          <select id="playerCount">
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4" selected>4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+          </select>
+        </div>
+        <div id="nameInputs" class="name-inputs"></div>
+        <button id="startBtn" class="btn primary">Start Match</button>
+      </section>
+
+      <main id="gameLayout" class="layout hidden">
+        <section class="panel glass board-panel">
+          <div class="panel-head">
+            <h2>Board</h2>
+            <div id="turnPill" class="turn-pill">Ready</div>
+          </div>
+          <div id="board" class="board"></div>
+        </section>
+
+        <aside class="sidebar">
+          <section class="panel glass">
+            <h2>Turn Controls</h2>
+            <div id="turnInfo"></div>
+            <div class="actions">
+              <button id="rollBtn" class="btn primary">Roll Dice</button>
+              <button id="endBtn" class="btn" disabled>End Turn</button>
+            </div>
+            <p class="hint">QOL: Press <kbd>R</kbd> to roll and <kbd>E</kbd> to end turn.</p>
+          </section>
+
+          <section class="panel glass">
+            <div class="panel-head">
+              <h2>Players</h2>
+              <button id="saveBtn" class="btn subtle tiny">Save</button>
+            </div>
+            <div id="playersPanel"></div>
+          </section>
+
+          <section class="panel glass">
+            <div class="panel-head">
+              <h2>Activity</h2>
+              <button id="clearLogBtn" class="btn subtle tiny">Clear</button>
+            </div>
+            <div id="log" class="log"></div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <dialog id="decisionModal" class="glass">
+      <h3 id="modalTitle"></h3>
+      <p id="modalText"></p>
+      <div class="modal-actions">
+        <button id="modalNo" class="btn subtle">Skip</button>
+        <button id="modalYes" class="btn primary">Confirm</button>
+      </div>
+    </dialog>
+
+    <dialog id="rulesModal" class="glass">
+      <h3>Quick Rules</h3>
+      <ul>
+        <li>Roll 2 dice and move clockwise.</li>
+        <li>Passing GO grants $200.</li>
+        <li>Buy unowned properties, or pay owner rent.</li>
+        <li>If cash drops below $0, you are eliminated.</li>
+        <li>Last active player wins.</li>
+      </ul>
+      <button id="rulesClose" class="btn primary">Got It</button>
+    </dialog>
+
+    <script src="script.js"></script>
+  </body>
+</html>
