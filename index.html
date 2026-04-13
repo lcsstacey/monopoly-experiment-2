@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <canvas id="fxCanvas" aria-hidden="true"></canvas>
+
     <div class="app-shell">
       <header class="topbar glass">
         <div>
@@ -14,15 +16,16 @@
           <h1>MONOPOLY</h1>
         </div>
         <div class="top-actions">
+          <button id="motionBtn" class="btn subtle">Motion On</button>
           <button id="musicBtn" class="btn subtle">🎷 Jazz On</button>
           <button id="rulesBtn" class="btn subtle">Rules</button>
           <button id="restartBtn" class="btn subtle">Restart</button>
         </div>
       </header>
 
-      <section id="setupPanel" class="panel glass">
+      <section id="setupPanel" class="panel glass reveal">
         <h2>Start a Game</h2>
-        <p class="muted">Designed for table play on a single PC. Pass the turn naturally, like a real board game.</p>
+        <p class="muted">Designed for table play on one PC. Smooth state-driven transitions keep turns clear and focused.</p>
         <div class="setup-grid">
           <label for="playerCount">Players</label>
           <select id="playerCount">
@@ -38,7 +41,7 @@
       </section>
 
       <main id="gameLayout" class="layout hidden">
-        <section class="panel glass board-panel">
+        <section class="panel glass board-panel reveal" id="boardPanel">
           <div class="panel-head">
             <h2>Board</h2>
             <div id="turnPill" class="turn-pill">Ready</div>
@@ -47,17 +50,17 @@
         </section>
 
         <aside class="sidebar">
-          <section class="panel glass">
+          <section class="panel glass reveal parallax-card">
             <h2>Turn Controls</h2>
             <div id="turnInfo"></div>
             <div class="actions">
               <button id="rollBtn" class="btn primary">Roll Dice</button>
               <button id="endBtn" class="btn" disabled>End Turn</button>
             </div>
-            <p class="hint">QOL: Press <kbd>R</kbd> to roll and <kbd>E</kbd> to end turn.</p>
+            <p class="hint">Press <kbd>R</kbd> to roll and <kbd>E</kbd> to end turn.</p>
           </section>
 
-          <section class="panel glass">
+          <section class="panel glass reveal parallax-card">
             <div class="panel-head">
               <h2>Players</h2>
               <button id="saveBtn" class="btn subtle tiny">Save</button>
@@ -65,7 +68,7 @@
             <div id="playersPanel"></div>
           </section>
 
-          <section class="panel glass">
+          <section class="panel glass reveal parallax-card">
             <div class="panel-head">
               <h2>Activity</h2>
               <button id="clearLogBtn" class="btn subtle tiny">Clear</button>
@@ -91,8 +94,8 @@
         <li>Roll 2 dice and move clockwise.</li>
         <li>Passing GO grants $200.</li>
         <li>Buy unowned properties, or pay owner rent.</li>
-        <li>If cash drops below $0, you are eliminated.</li>
-        <li>Last active player wins.</li>
+        <li>A full color set doubles base rent.</li>
+        <li>Taxes feed Free Parking. Last active player wins.</li>
       </ul>
       <button id="rulesClose" class="btn primary">Got It</button>
     </dialog>

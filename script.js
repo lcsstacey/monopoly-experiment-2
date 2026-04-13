@@ -62,10 +62,12 @@ const state = {
   lastRoll: null,
   freeParkingPot: 0,
   musicOn: false,
+  motionOn: true,
 };
 
 const el = {
   board: document.getElementById('board'),
+  boardPanel: document.getElementById('boardPanel'),
   log: document.getElementById('log'),
   playersPanel: document.getElementById('playersPanel'),
   turnInfo: document.getElementById('turnInfo'),
@@ -80,6 +82,7 @@ const el = {
   restartBtn: document.getElementById('restartBtn'),
   saveBtn: document.getElementById('saveBtn'),
   clearLogBtn: document.getElementById('clearLogBtn'),
+  motionBtn: document.getElementById('motionBtn'),
   musicBtn: document.getElementById('musicBtn'),
   rulesBtn: document.getElementById('rulesBtn'),
   rulesModal: document.getElementById('rulesModal'),
@@ -89,6 +92,7 @@ const el = {
   modalText: document.getElementById('modalText'),
   modalYes: document.getElementById('modalYes'),
   modalNo: document.getElementById('modalNo'),
+  fxCanvas: document.getElementById('fxCanvas'),
 };
 
 let audioCtx;
@@ -135,10 +139,7 @@ function isMonopoly(owner, space) {
 function rentFor(space, owner, roll) {
   if (space.type === 'railroad') return 25 * countByType(owner, 'railroad');
   if (space.type === 'utility') return roll * (countByType(owner, 'utility') === 2 ? 10 : 4);
-  if (space.type === 'property') {
-    const base = space.rent || 0;
-    return isMonopoly(owner, space) ? base * 2 : base;
-  }
+  if (space.type === 'property') return isMonopoly(owner, space) ? space.rent * 2 : space.rent;
   return 0;
 }
 
@@ -156,6 +157,7 @@ function log(message) {
 function setTurnPill(text, color = '#475569') {
   el.turnPill.textContent = text;
   el.turnPill.style.borderColor = color;
+  el.turnPill.style.boxShadow = `0 0 0 1px ${color}44`;
 }
 
 function renderBoard() {
@@ -235,6 +237,7 @@ function renderTurnInfo() {
     el.endBtn.disabled = true;
     return;
   }
+
   const p = state.players[state.current];
   setTurnPill(`${p.name}'s turn`, p.color);
   el.turnInfo.innerHTML = `<strong>${p.name}</strong><br>Position: ${BOARD[p.pos].name}<br>${state.lastRoll ? `Last roll: ${state.lastRoll}` : 'Roll the dice.'}`;
@@ -304,10 +307,7 @@ async function resolveLanding(player, roll) {
   if (['property', 'railroad', 'utility'].includes(space.type)) {
     if (!owner) {
       if (player.cash >= space.price) {
-        const buy = await showDecision({
-          title: `Buy ${space.name}?`,
-          text: `Price $${space.price}. ${player.name}, purchase this property?`,
-        });
+        const buy = await showDecision({ title: `Buy ${space.name}?`, text: `Price $${space.price}. ${player.name}, purchase this property?` });
         if (buy) {
           player.cash -= space.price;
           player.properties.push(player.pos);
@@ -359,9 +359,7 @@ async function resolveLanding(player, roll) {
     return;
   }
 
-  if (space.name === 'GO') {
-    log(`${player.name} landed on GO.`);
-  }
+  if (space.name === 'GO') log(`${player.name} landed on GO.`);
 }
 
 async function takeTurn() {
@@ -416,12 +414,8 @@ function startGame() {
     properties: [],
     bankrupt: false,
   }));
-  state.current = 0;
-  state.rolled = false;
-  state.gameOver = false;
-  state.lastRoll = null;
-  state.freeParkingPot = 0;
 
+  Object.assign(state, { current: 0, rolled: false, gameOver: false, lastRoll: null, freeParkingPot: 0 });
   el.log.innerHTML = '';
   log('Welcome to Monopoly Family Edition.');
   el.setupPanel.classList.add('hidden');
@@ -434,11 +428,7 @@ function startGame() {
 
 function restart() {
   state.players = [];
-  state.current = 0;
-  state.rolled = false;
-  state.gameOver = false;
-  state.lastRoll = null;
-  state.freeParkingPot = 0;
+  Object.assign(state, { current: 0, rolled: false, gameOver: false, lastRoll: null, freeParkingPot: 0 });
   el.setupPanel.classList.remove('hidden');
   el.gameLayout.classList.add('hidden');
   el.log.innerHTML = '';
@@ -467,13 +457,14 @@ function loadSavedGame() {
   if (!raw) return false;
   try {
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed.players) || !parsed.players.length) return false;
+    if (!Array.isArray(parsed.players) || parsed.players.length < 2) return false;
     state.players = parsed.players;
-    state.current = parsed.current || 0;
+    state.current = Number(parsed.current) || 0;
     state.rolled = Boolean(parsed.rolled);
     state.gameOver = Boolean(parsed.gameOver);
     state.lastRoll = parsed.lastRoll || null;
-    state.freeParkingPot = parsed.freeParkingPot || 0;
+    state.freeParkingPot = Number(parsed.freeParkingPot) || 0;
+
     el.setupPanel.classList.add('hidden');
     el.gameLayout.classList.remove('hidden');
     el.rollBtn.disabled = state.rolled;
@@ -529,14 +520,124 @@ function toggleMusic() {
   let step = 0;
   jazzTimer = setInterval(() => {
     const chord = progression[step % progression.length];
-    playNote(chord[0], 0.3, 0.015, 'sine');
-    playNote(chord[1], 0.25, 0.012, 'triangle');
+    playNote(chord[0], 0.3, 0.014, 'sine');
+    playNote(chord[1], 0.24, 0.011, 'triangle');
     playNote(chord[2], 0.18, 0.01, 'square');
-    if (step % 2 === 0) playNote(chord[0] / 2, 0.15, 0.015, 'sawtooth');
+    if (step % 2 === 0) playNote(chord[0] / 2, 0.14, 0.013, 'sawtooth');
     step += 1;
   }, 480);
 
   el.musicBtn.textContent = '🎷 Jazz Off';
+}
+
+function bindSpatialMotion() {
+  const cards = [...document.querySelectorAll('.parallax-card')];
+
+  window.addEventListener('pointermove', (event) => {
+    if (!state.motionOn) return;
+    const x = (event.clientX / window.innerWidth) - 0.5;
+    const y = (event.clientY / window.innerHeight) - 0.5;
+    el.boardPanel.style.transform = `rotateX(${(-y * 5).toFixed(2)}deg) rotateY(${(x * 7).toFixed(2)}deg)`;
+
+    cards.forEach((card, i) => {
+      const depth = 8 + (i * 2);
+      card.style.transform = `translate3d(${(x * depth).toFixed(2)}px, ${(y * depth).toFixed(2)}px, 0)`;
+    });
+  });
+
+  window.addEventListener('pointerleave', () => {
+    el.boardPanel.style.transform = 'none';
+    cards.forEach((card) => { card.style.transform = 'none'; });
+  });
+}
+
+function toggleMotion() {
+  state.motionOn = !state.motionOn;
+  document.body.classList.toggle('motion-off', !state.motionOn);
+  el.motionBtn.textContent = state.motionOn ? 'Motion On' : 'Motion Off';
+  if (!state.motionOn) {
+    el.boardPanel.style.transform = 'none';
+    [...document.querySelectorAll('.parallax-card')].forEach((card) => { card.style.transform = 'none'; });
+  }
+}
+
+function startFxScene() {
+  const canvas = el.fxCanvas;
+  const ctx = canvas.getContext('2d');
+  const points = [];
+  let w = 0;
+  let h = 0;
+  let pointer = { x: 0.5, y: 0.5 };
+
+  const resize = () => {
+    w = window.innerWidth;
+    h = window.innerHeight;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+
+  const init = () => {
+    points.length = 0;
+    for (let i = 0; i < 52; i += 1) {
+      points.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.35,
+        vy: (Math.random() - 0.5) * 0.35,
+      });
+    }
+  };
+
+  const draw = () => {
+    ctx.clearRect(0, 0, w, h);
+
+    points.forEach((p) => {
+      p.x += p.vx + (pointer.x - 0.5) * 0.08;
+      p.y += p.vy + (pointer.y - 0.5) * 0.08;
+      if (p.x < -40) p.x = w + 40;
+      if (p.x > w + 40) p.x = -40;
+      if (p.y < -40) p.y = h + 40;
+      if (p.y > h + 40) p.y = -40;
+    });
+
+    for (let i = 0; i < points.length; i += 1) {
+      const a = points[i];
+      for (let j = i + 1; j < points.length; j += 1) {
+        const b = points[j];
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 140) {
+          ctx.strokeStyle = `rgba(148,163,184,${(1 - dist / 140) * 0.2})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    points.forEach((p) => {
+      ctx.fillStyle = 'rgba(226,232,240,0.52)';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    requestAnimationFrame(draw);
+  };
+
+  window.addEventListener('resize', () => { resize(); init(); });
+  window.addEventListener('pointermove', (event) => {
+    pointer = { x: event.clientX / w, y: event.clientY / h };
+  });
+
+  resize();
+  init();
+  draw();
 }
 
 el.playerCount.addEventListener('change', initNameInputs);
@@ -546,6 +647,7 @@ el.endBtn.addEventListener('click', endTurn);
 el.restartBtn.addEventListener('click', restart);
 el.saveBtn.addEventListener('click', saveNow);
 el.clearLogBtn.addEventListener('click', clearLog);
+el.motionBtn.addEventListener('click', toggleMotion);
 el.musicBtn.addEventListener('click', toggleMusic);
 el.rulesBtn.addEventListener('click', () => el.rulesModal.showModal());
 el.rulesClose.addEventListener('click', () => el.rulesModal.close());
@@ -556,6 +658,6 @@ document.addEventListener('keydown', (event) => {
 });
 
 initNameInputs();
-if (!loadSavedGame()) {
-  setTurnPill('Setup', '#64748b');
-}
+bindSpatialMotion();
+startFxScene();
+if (!loadSavedGame()) setTurnPill('Setup', '#64748b');
