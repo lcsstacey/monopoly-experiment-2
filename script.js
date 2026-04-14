@@ -64,6 +64,7 @@ const state = {
   freeParkingPot: 0,
   musicOn: false,
   motionOn: true,
+  dice: [1, 1],
 };
 
 const el = {
@@ -94,6 +95,9 @@ const el = {
   modalYes: document.getElementById('modalYes'),
   modalNo: document.getElementById('modalNo'),
   fxCanvas: document.getElementById('fxCanvas'),
+  dieOne: document.getElementById('dieOne'),
+  dieTwo: document.getElementById('dieTwo'),
+  rollTotal: document.getElementById('rollTotal'),
 };
 
 let audioCtx;
@@ -244,10 +248,18 @@ function renderTurnInfo() {
   el.turnInfo.innerHTML = `<strong>${p.name}</strong><br>Position: ${BOARD[p.pos].name}<br>${state.lastRoll ? `Last roll: ${state.lastRoll}` : 'Roll the dice.'}`;
 }
 
+function renderDice() {
+  const [d1, d2] = state.dice;
+  el.dieOne.dataset.value = String(d1);
+  el.dieTwo.dataset.value = String(d2);
+  el.rollTotal.textContent = state.lastRoll ? `Roll: ${d1} + ${d2} = ${d1 + d2}` : 'Roll: --';
+}
+
 function refresh() {
   renderBoard();
   renderPlayers();
   renderTurnInfo();
+  renderDice();
 }
 
 function nextActivePlayer() {
@@ -380,6 +392,7 @@ async function takeTurn() {
   const d1 = 1 + Math.floor(Math.random() * 6);
   const d2 = 1 + Math.floor(Math.random() * 6);
   const roll = d1 + d2;
+  state.dice = [d1, d2];
   state.lastRoll = `${d1} + ${d2} = ${roll}`;
   state.rolled = true;
 
@@ -430,6 +443,7 @@ function startGame() {
     processingTurn: false,
     lastRoll: null,
     freeParkingPot: 0,
+    dice: [1, 1],
   });
   el.log.innerHTML = '';
   log('Welcome to Monopoly Family Edition.');
@@ -450,6 +464,7 @@ function restart() {
     processingTurn: false,
     lastRoll: null,
     freeParkingPot: 0,
+    dice: [1, 1],
   });
   el.setupPanel.classList.remove('hidden');
   el.gameLayout.classList.add('hidden');
@@ -471,6 +486,7 @@ function serializeState() {
     gameOver: state.gameOver,
     lastRoll: state.lastRoll,
     freeParkingPot: state.freeParkingPot,
+    dice: state.dice,
   });
 }
 
@@ -505,6 +521,17 @@ function loadSavedGame() {
     state.processingTurn = false;
     state.lastRoll = parsed.lastRoll || null;
     state.freeParkingPot = Number(parsed.freeParkingPot) || 0;
+    const parsedDice = Array.isArray(parsed.dice) ? parsed.dice : [1, 1];
+    const safeD1 = Number.isFinite(parsedDice[0]) ? Math.min(Math.max(Math.floor(parsedDice[0]), 1), 6) : 1;
+    const safeD2 = Number.isFinite(parsedDice[1]) ? Math.min(Math.max(Math.floor(parsedDice[1]), 1), 6) : 1;
+    state.dice = [safeD1, safeD2];
+
+    if (state.players.every((p) => p.bankrupt)) {
+      state.players[0].bankrupt = false;
+    }
+    if (state.players[state.current].bankrupt) {
+      state.current = nextActivePlayer();
+    }
 
     if (state.players.every((p) => p.bankrupt)) {
       state.players[0].bankrupt = false;
@@ -549,7 +576,7 @@ function toggleMusic() {
 
   audioCtx.resume();
 
-  const playNote = (freq, dur = 0.2, gainValue = 0.02, type = 'triangle') => {
+  const playNote = (freq, dur = 0.2, gainValue = 0.04, type = 'triangle') => {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = type;
@@ -570,10 +597,10 @@ function toggleMusic() {
   let step = 0;
   jazzTimer = setInterval(() => {
     const chord = progression[step % progression.length];
-    playNote(chord[0], 0.3, 0.014, 'sine');
-    playNote(chord[1], 0.24, 0.011, 'triangle');
-    playNote(chord[2], 0.18, 0.01, 'square');
-    if (step % 2 === 0) playNote(chord[0] / 2, 0.14, 0.013, 'sawtooth');
+    playNote(chord[0], 0.3, 0.04, 'sine');
+    playNote(chord[1], 0.24, 0.032, 'triangle');
+    playNote(chord[2], 0.18, 0.03, 'square');
+    if (step % 2 === 0) playNote(chord[0] / 2, 0.14, 0.036, 'sawtooth');
     step += 1;
   }, 480);
 
