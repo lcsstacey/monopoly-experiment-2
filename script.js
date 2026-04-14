@@ -533,6 +533,13 @@ function loadSavedGame() {
       state.current = nextActivePlayer();
     }
 
+    if (state.players.every((p) => p.bankrupt)) {
+      state.players[0].bankrupt = false;
+    }
+    if (state.players[state.current].bankrupt) {
+      state.current = nextActivePlayer();
+    }
+
     el.setupPanel.classList.add('hidden');
     el.gameLayout.classList.remove('hidden');
     el.rollBtn.disabled = state.rolled;
