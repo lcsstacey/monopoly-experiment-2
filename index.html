@@ -3,20 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Monopoly Party Edition</title>
+    <title>Monopoly — Family Edition</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div id="app">
-      <header class="topbar">
-        <h1>MONOPOLY <span>Party Edition</span></h1>
-        <button id="restartBtn" class="btn ghost">Restart Game</button>
+    <canvas id="fxCanvas" aria-hidden="true"></canvas>
+
+    <div class="app-shell">
+      <header class="topbar glass">
+        <div>
+          <p class="eyebrow">Premium Local Multiplayer</p>
+          <h1>MONOPOLY</h1>
+        </div>
+        <div class="top-actions">
+          <button id="motionBtn" class="btn subtle">Motion On</button>
+          <button id="musicBtn" class="btn subtle">🎷 Jazz On</button>
+          <button id="rulesBtn" class="btn subtle">Rules</button>
+          <button id="restartBtn" class="btn subtle">Restart</button>
+        </div>
       </header>
 
-      <section id="setupPanel" class="panel">
-        <h2>Game Setup</h2>
-        <p>Play locally with friends/family on one PC (hot-seat multiplayer).</p>
-        <div class="row">
+      <section id="setupPanel" class="panel glass reveal">
+        <h2>Start a Game</h2>
+        <p class="muted">Designed for table play on one PC. Smooth state-driven transitions keep turns clear and focused.</p>
+        <div class="setup-grid">
           <label for="playerCount">Players</label>
           <select id="playerCount">
             <option value="2">2</option>
@@ -30,42 +40,64 @@
         <button id="startBtn" class="btn primary">Start Match</button>
       </section>
 
-      <main class="layout hidden" id="gameLayout">
-        <section class="panel board-panel">
-          <h2>Board</h2>
+      <main id="gameLayout" class="layout hidden">
+        <section class="panel glass board-panel reveal" id="boardPanel">
+          <div class="panel-head">
+            <h2>Board</h2>
+            <div id="turnPill" class="turn-pill">Ready</div>
+          </div>
           <div id="board" class="board"></div>
         </section>
 
         <aside class="sidebar">
-          <section class="panel">
-            <h2>Turn</h2>
+          <section class="panel glass reveal parallax-card">
+            <h2>Turn Controls</h2>
             <div id="turnInfo"></div>
             <div class="actions">
               <button id="rollBtn" class="btn primary">Roll Dice</button>
               <button id="endBtn" class="btn" disabled>End Turn</button>
             </div>
+            <p class="hint">Press <kbd>R</kbd> to roll and <kbd>E</kbd> to end turn.</p>
           </section>
 
-          <section class="panel">
-            <h2>Players</h2>
+          <section class="panel glass reveal parallax-card">
+            <div class="panel-head">
+              <h2>Players</h2>
+              <button id="saveBtn" class="btn subtle tiny">Save</button>
+            </div>
             <div id="playersPanel"></div>
           </section>
 
-          <section class="panel">
-            <h2>Activity Log</h2>
+          <section class="panel glass reveal parallax-card">
+            <div class="panel-head">
+              <h2>Activity</h2>
+              <button id="clearLogBtn" class="btn subtle tiny">Clear</button>
+            </div>
             <div id="log" class="log"></div>
           </section>
         </aside>
       </main>
     </div>
 
-    <dialog id="decisionModal">
+    <dialog id="decisionModal" class="glass">
       <h3 id="modalTitle"></h3>
       <p id="modalText"></p>
       <div class="modal-actions">
-        <button id="modalNo" class="btn ghost">No</button>
-        <button id="modalYes" class="btn primary">Yes</button>
+        <button id="modalNo" class="btn subtle">Skip</button>
+        <button id="modalYes" class="btn primary">Confirm</button>
       </div>
+    </dialog>
+
+    <dialog id="rulesModal" class="glass">
+      <h3>Quick Rules</h3>
+      <ul>
+        <li>Roll 2 dice and move clockwise.</li>
+        <li>Passing GO grants $200.</li>
+        <li>Buy unowned properties, or pay owner rent.</li>
+        <li>A full color set doubles base rent.</li>
+        <li>Taxes feed Free Parking. Last active player wins.</li>
+      </ul>
+      <button id="rulesClose" class="btn primary">Got It</button>
     </dialog>
 
     <script src="script.js"></script>
