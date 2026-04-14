@@ -1,4 +1,4 @@
-# Monopoly — Family Edition
+# Monopoly — Experiment
 
 A polished browser-based Monopoly experience built for local multiplayer (hot-seat) sessions with friends and family.
 
@@ -49,14 +49,6 @@ npm run dist:linux # Linux AppImage
 ```
 
 Build outputs are generated in `dist/`.
-
-### Local quality checks
-
-```bash
-npm run qa
-```
-
-This validates core board/card structure and key UI element IDs before packaging.
 
 ## Windows installer + signing (production path)
 

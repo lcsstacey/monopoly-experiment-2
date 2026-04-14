@@ -72,7 +72,6 @@ const state = {
   musicOn: false,
   motionOn: true,
   dice: [1, 1],
-  selectedSpace: null,
 };
 
 const el = {
@@ -110,7 +109,6 @@ const el = {
   turnCountLabel: document.getElementById('turnCountLabel'),
   activePlayersLabel: document.getElementById('activePlayersLabel'),
   potLabel: document.getElementById('potLabel'),
-  spaceInspector: document.getElementById('spaceInspector'),
 };
 
 let audioCtx;
@@ -187,10 +185,6 @@ function renderBoard() {
     if (!state.gameOver && state.players[state.current] && state.players[state.current].pos === idx) {
       node.classList.add('current-space');
     }
-    node.addEventListener('click', () => {
-      state.selectedSpace = idx;
-      renderInspector();
-    });
     node.style.gridRow = pos.r;
     node.style.gridColumn = pos.c;
     node.innerHTML = `<div class="name">${space.name}</div>${space.price ? `<div class="price">$${space.price}</div>` : ''}`;
@@ -282,39 +276,12 @@ function renderHud() {
   el.potLabel.textContent = `$${state.freeParkingPot}`;
 }
 
-function renderInspector() {
-  if (state.selectedSpace === null || !BOARD[state.selectedSpace]) {
-    el.spaceInspector.innerHTML = '<p class="muted">Click any board space to view details.</p>';
-    return;
-  }
-
-  const idx = state.selectedSpace;
-  const space = BOARD[idx];
-  const owner = ownerOf(idx);
-  const ownerMarkup = owner
-    ? `<div class="owner"><span class="owner-dot" style="background:${owner.color}"></span>Owned by ${owner.name}</div>`
-    : '<div class="owner">Unowned</div>';
-
-  el.spaceInspector.innerHTML = `
-    <h3>${space.name}</h3>
-    <div class="meta">
-      Position: ${idx}<br>
-      Type: ${space.type}<br>
-      ${space.price ? `Price: $${space.price}<br>` : ''}
-      ${space.rent ? `Base rent: $${space.rent}<br>` : ''}
-      ${space.amount ? `Fee: $${space.amount}<br>` : ''}
-    </div>
-    ${ownerMarkup}
-  `;
-}
-
 function refresh() {
   renderBoard();
   renderPlayers();
   renderTurnInfo();
   renderDice();
   renderHud();
-  renderInspector();
 }
 
 function nextActivePlayer() {
@@ -486,6 +453,7 @@ async function takeTurn() {
   const roll = d1 + d2;
   await animateDice(d1, d2);
   playRollFx(roll);
+  state.dice = [d1, d2];
   state.lastRoll = `${d1} + ${d2} = ${roll}`;
   state.rolled = true;
 
@@ -539,7 +507,6 @@ function startGame() {
     lastRoll: null,
     freeParkingPot: 0,
     dice: [1, 1],
-    selectedSpace: null,
   });
   el.log.innerHTML = '';
   log('Welcome to Monopoly Family Edition.');
@@ -562,7 +529,6 @@ function restart() {
     lastRoll: null,
     freeParkingPot: 0,
     dice: [1, 1],
-    selectedSpace: null,
   });
   el.setupPanel.classList.remove('hidden');
   el.gameLayout.classList.add('hidden');
@@ -586,7 +552,6 @@ function serializeState() {
     lastRoll: state.lastRoll,
     freeParkingPot: state.freeParkingPot,
     dice: state.dice,
-    selectedSpace: state.selectedSpace,
   });
 }
 
@@ -626,8 +591,13 @@ function loadSavedGame() {
     const safeD1 = Number.isFinite(parsedDice[0]) ? Math.min(Math.max(Math.floor(parsedDice[0]), 1), 6) : 1;
     const safeD2 = Number.isFinite(parsedDice[1]) ? Math.min(Math.max(Math.floor(parsedDice[1]), 1), 6) : 1;
     state.dice = [safeD1, safeD2];
-    const savedSelected = Number.isInteger(parsed.selectedSpace) ? parsed.selectedSpace : null;
-    state.selectedSpace = (savedSelected !== null && savedSelected >= 0 && savedSelected < BOARD.length) ? savedSelected : null;
+
+    if (state.players.every((p) => p.bankrupt)) {
+      state.players[0].bankrupt = false;
+    }
+    if (state.players[state.current].bankrupt) {
+      state.current = nextActivePlayer();
+    }
 
     if (state.players.every((p) => p.bankrupt)) {
       state.players[0].bankrupt = false;
