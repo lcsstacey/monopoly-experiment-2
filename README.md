@@ -1,4 +1,4 @@
-# Monopoly — Family Edition
+# Monopoly — Experiment
 
 A polished browser-based Monopoly experience built for local multiplayer (hot-seat) sessions with friends and family.
 
