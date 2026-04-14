@@ -46,6 +46,18 @@ body {
 .eyebrow { margin: 0 0 0.3rem; color: var(--muted); letter-spacing: 0.15em; font-size: 0.72rem; text-transform: uppercase; }
 h1 { margin: 0; font-size: clamp(1.6rem, 3vw, 2.4rem); letter-spacing: 0.05em; }
 .top-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.hud-stats { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.hud-chip {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.38rem 0.65rem;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.48);
+  min-width: 86px;
+}
+.hud-chip span { color: #94a3b8; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.hud-chip strong { font-size: 0.96rem; }
 
 .panel {
   border-radius: 18px;
@@ -66,6 +78,16 @@ h1 { margin: 0; font-size: clamp(1.6rem, 3vw, 2.4rem); letter-spacing: 0.05em; }
 
 .setup-grid { display: grid; grid-template-columns: 90px 1fr; gap: 0.8rem; align-items: center; margin: 1rem 0; }
 .name-inputs { display: grid; gap: 0.45rem; margin-bottom: 1rem; }
+.setup-notes {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.55rem 0.7rem;
+  margin: 0.7rem 0;
+  border: 1px dashed #334155;
+  border-radius: 12px;
+  color: #cbd5e1;
+}
+.setup-notes p { margin: 0; font-size: 0.88rem; }
 input, select {
   width: 100%;
   color: var(--text);
@@ -100,6 +122,10 @@ input:focus, select:focus { outline: 2px solid #3b82f6; outline-offset: 1px; }
 .cell:hover { transform: translateY(-2px); filter: brightness(1.12); }
 .cell.property { background: radial-gradient(circle at 8% 0%, #253756, #101a2d 66%); }
 .cell.corner { background: linear-gradient(180deg, #352042, #24152d); }
+.cell.current-space {
+  box-shadow: 0 0 0 2px #f8fafc88, 0 0 18px #f59e0b77;
+  filter: brightness(1.18);
+}
 .cell .name { font-weight: 800; line-height: 1.12; letter-spacing: 0.01em; }
 .cell .price { color: #93c5fd; margin-top: 2px; }
 .color-stripe { position: absolute; top: 0; left: 0; right: 0; height: 5px; border-radius: 10px 10px 0 0; }
@@ -214,4 +240,5 @@ dialog::backdrop { background: rgba(2, 6, 23, 0.75); }
 
 @media (max-width: 1050px) {
   .layout { grid-template-columns: 1fr; }
+  .hud-stats { order: 3; width: 100%; }
 }

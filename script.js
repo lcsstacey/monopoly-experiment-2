@@ -57,6 +57,7 @@ const COLORS = ['#60a5fa', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb7185'
 const state = {
   players: [],
   current: 0,
+  turnNumber: 1,
   rolled: false,
   gameOver: false,
   processingTurn: false,
@@ -98,6 +99,9 @@ const el = {
   dieOne: document.getElementById('dieOne'),
   dieTwo: document.getElementById('dieTwo'),
   rollTotal: document.getElementById('rollTotal'),
+  turnCountLabel: document.getElementById('turnCountLabel'),
+  activePlayersLabel: document.getElementById('activePlayersLabel'),
+  potLabel: document.getElementById('potLabel'),
 };
 
 let audioCtx;
@@ -171,6 +175,9 @@ function renderBoard() {
     const node = document.createElement('div');
     const pos = boardPos(idx);
     node.className = `cell ${['property', 'railroad', 'utility'].includes(space.type) ? 'property' : ''} ${['corner', 'gotojail'].includes(space.type) ? 'corner' : ''}`;
+    if (!state.gameOver && state.players[state.current] && state.players[state.current].pos === idx) {
+      node.classList.add('current-space');
+    }
     node.style.gridRow = pos.r;
     node.style.gridColumn = pos.c;
     node.innerHTML = `<div class="name">${space.name}</div>${space.price ? `<div class="price">$${space.price}</div>` : ''}`;
@@ -255,11 +262,19 @@ function renderDice() {
   el.rollTotal.textContent = state.lastRoll ? `Roll: ${d1} + ${d2} = ${d1 + d2}` : 'Roll: --';
 }
 
+function renderHud() {
+  const activePlayers = state.players.filter((p) => !p.bankrupt).length;
+  el.turnCountLabel.textContent = String(state.turnNumber);
+  el.activePlayersLabel.textContent = String(activePlayers);
+  el.potLabel.textContent = `$${state.freeParkingPot}`;
+}
+
 function refresh() {
   renderBoard();
   renderPlayers();
   renderTurnInfo();
   renderDice();
+  renderHud();
 }
 
 function nextActivePlayer() {
@@ -322,7 +337,10 @@ async function resolveLanding(player, roll) {
   if (['property', 'railroad', 'utility'].includes(space.type)) {
     if (!owner) {
       if (player.cash >= space.price) {
-        const buy = await showDecision({ title: `Buy ${space.name}?`, text: `Price $${space.price}. ${player.name}, purchase this property?` });
+        const buy = await showDecision({
+          title: `Buy ${space.name}?`,
+          text: `Price $${space.price} • Base rent $${space.rent || 0}. ${player.name}, purchase this property?`,
+        });
         if (buy) {
           player.cash -= space.price;
           player.properties.push(player.pos);
@@ -377,6 +395,40 @@ async function resolveLanding(player, roll) {
   if (space.name === 'GO') log(`${player.name} landed on GO.`);
 }
 
+function playRollFx(total) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = 220 + (total * 28);
+  gain.gain.value = 0.0001;
+  osc.connect(gain).connect(audioCtx.destination);
+  const now = audioCtx.currentTime;
+  gain.gain.exponentialRampToValueAtTime(0.025, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+  osc.start(now);
+  osc.stop(now + 0.2);
+}
+
+function animateDice(finalD1, finalD2) {
+  return new Promise((resolve) => {
+    const steps = 8;
+    let frame = 0;
+    const timer = setInterval(() => {
+      frame += 1;
+      if (frame >= steps) {
+        clearInterval(timer);
+        state.dice = [finalD1, finalD2];
+        renderDice();
+        resolve();
+        return;
+      }
+      state.dice = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
+      renderDice();
+    }, 45);
+  });
+}
+
 async function takeTurn() {
   if (state.gameOver || state.processingTurn || !state.players.length) return;
   const player = state.players[state.current];
@@ -392,6 +444,8 @@ async function takeTurn() {
   const d1 = 1 + Math.floor(Math.random() * 6);
   const d2 = 1 + Math.floor(Math.random() * 6);
   const roll = d1 + d2;
+  await animateDice(d1, d2);
+  playRollFx(roll);
   state.dice = [d1, d2];
   state.lastRoll = `${d1} + ${d2} = ${roll}`;
   state.rolled = true;
@@ -418,6 +472,7 @@ function endTurn() {
   if (!state.rolled || state.gameOver) return;
   state.rolled = false;
   state.current = nextActivePlayer();
+  state.turnNumber += 1;
   el.rollBtn.disabled = false;
   el.endBtn.disabled = true;
   refresh();
@@ -438,6 +493,7 @@ function startGame() {
 
   Object.assign(state, {
     current: 0,
+    turnNumber: 1,
     rolled: false,
     gameOver: false,
     processingTurn: false,
@@ -459,6 +515,7 @@ function restart() {
   state.players = [];
   Object.assign(state, {
     current: 0,
+    turnNumber: 1,
     rolled: false,
     gameOver: false,
     processingTurn: false,
@@ -482,6 +539,7 @@ function serializeState() {
   return JSON.stringify({
     players: state.players,
     current: state.current,
+    turnNumber: state.turnNumber,
     rolled: state.rolled,
     gameOver: state.gameOver,
     lastRoll: state.lastRoll,
@@ -516,6 +574,7 @@ function loadSavedGame() {
       }));
     if (state.players.length < 2) return false;
     state.current = Math.min(Math.max(Number(parsed.current) || 0, 0), state.players.length - 1);
+    state.turnNumber = Math.max(Number(parsed.turnNumber) || 1, 1);
     state.rolled = Boolean(parsed.rolled);
     state.gameOver = Boolean(parsed.gameOver);
     state.processingTurn = false;
@@ -740,4 +799,5 @@ document.addEventListener('keydown', (event) => {
 initNameInputs();
 bindSpatialMotion();
 startFxScene();
+renderHud();
 if (!loadSavedGame()) setTurnPill('Setup', '#64748b');
