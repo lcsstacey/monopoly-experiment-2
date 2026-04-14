@@ -7,7 +7,6 @@ const htmlPath = path.join(repoRoot, 'index.html');
 
 const js = fs.readFileSync(scriptPath, 'utf8');
 const html = fs.readFileSync(htmlPath, 'utf8');
-const pythonLauncher = path.join(repoRoot, 'python_app', 'app.py');
 
 const marker = 'const START_CASH';
 const splitAt = js.indexOf(marker);
@@ -52,11 +51,6 @@ const requiredIds = [
 checks.push({
   ok: requiredIds.every((id) => html.includes(`id="${id}"`)),
   label: 'Critical UI IDs exist in index.html',
-});
-
-checks.push({
-  ok: fs.existsSync(pythonLauncher),
-  label: 'Python desktop launcher exists (python_app/app.py)',
 });
 
 const failed = checks.filter((c) => !c.ok);

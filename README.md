@@ -1,4 +1,4 @@
-# Monopoly — Family Edition
+# Monopoly — Experiment
 
 A polished browser-based Monopoly experience built for local multiplayer (hot-seat) sessions with friends and family.
 
@@ -50,14 +50,6 @@ npm run dist:linux # Linux AppImage
 
 Build outputs are generated in `dist/`.
 
-### Local quality checks
-
-```bash
-npm run qa
-```
-
-This validates core board/card structure and key UI element IDs before packaging.
-
 ## Windows installer + signing (production path)
 
 This repo now includes a GitHub Actions workflow at:
@@ -100,28 +92,6 @@ For Steam release, the desktop packaging baseline is now in place. Remaining rel
 3. Validate signed installer install/uninstall on clean Windows machines.
 4. Add crash reporting/telemetry if desired.
 5. Prepare store assets (screenshots, trailer, copy, age ratings if needed).
-
-## Python app base (desktop launcher)
-
-You can now run the game from a Python desktop entrypoint (instead of Electron) using `pywebview`.
-
-### Run with Python
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python python_app/app.py
-```
-
-### Package to executable (PyInstaller example)
-
-```bash
-pip install pyinstaller
-pyinstaller --noconfirm --onefile --name MonopolyFamilyEdition python_app/app.py
-```
-
-This gives you a Python-first desktop app base while preserving your existing game UI and logic.
 
 ## Browser run (no build)
 

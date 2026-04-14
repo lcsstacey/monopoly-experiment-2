@@ -12,9 +12,7 @@
     "dist": "electron-builder --config electron-builder.config.cjs",
     "dist:win": "electron-builder --config electron-builder.config.cjs --win nsis --x64",
     "dist:mac": "electron-builder --config electron-builder.config.cjs --mac dmg",
-    "dist:linux": "electron-builder --config electron-builder.config.cjs --linux AppImage",
-    "qa": "node scripts/qa-check.mjs",
-    "test": "npm run qa"
+    "dist:linux": "electron-builder --config electron-builder.config.cjs --linux AppImage"
   },
   "devDependencies": {
     "electron": "^36.2.1",
