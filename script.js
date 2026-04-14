@@ -48,6 +48,12 @@ const CHANCE = [
   { text: 'Move back 3 spaces.', fn: (p) => { p.pos = (p.pos + 37) % 40; } },
   { text: 'Birthday gifts. Collect $60.', fn: (p) => { p.cash += 60; } },
   { text: 'Car maintenance. Pay $50.', fn: (p) => { p.cash -= 50; } },
+  { text: 'Bank error in your favor. Collect $150.', fn: (p) => { p.cash += 150; } },
+  { text: 'Speeding fine. Pay $25.', fn: (p) => { p.cash -= 25; } },
+  { text: 'Advance to Illinois.', fn: (p) => { p.pos = 25; } },
+  { text: 'Holiday fund matures. Collect $80.', fn: (p) => { p.cash += 80; } },
+  { text: 'Go directly to Jail.', fn: (p) => { p.pos = 10; } },
+  { text: 'Pay school fees of $50.', fn: (p) => { p.cash -= 50; } },
 ];
 
 const START_CASH = 1500;
@@ -83,6 +89,7 @@ const el = {
   nameInputs: document.getElementById('nameInputs'),
   startBtn: document.getElementById('startBtn'),
   restartBtn: document.getElementById('restartBtn'),
+  fullscreenBtn: document.getElementById('fullscreenBtn'),
   saveBtn: document.getElementById('saveBtn'),
   clearLogBtn: document.getElementById('clearLogBtn'),
   motionBtn: document.getElementById('motionBtn'),
@@ -697,6 +704,14 @@ function toggleMotion() {
   }
 }
 
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
 function startFxScene() {
   const canvas = el.fxCanvas;
   const ctx = canvas.getContext('2d');
@@ -781,6 +796,7 @@ el.startBtn.addEventListener('click', startGame);
 el.rollBtn.addEventListener('click', takeTurn);
 el.endBtn.addEventListener('click', endTurn);
 el.restartBtn.addEventListener('click', restart);
+el.fullscreenBtn.addEventListener('click', toggleFullscreen);
 el.saveBtn.addEventListener('click', saveNow);
 el.clearLogBtn.addEventListener('click', clearLog);
 el.motionBtn.addEventListener('click', toggleMotion);
@@ -794,6 +810,10 @@ document.addEventListener('keydown', (event) => {
   if (el.modal.open || el.rulesModal.open) return;
   if (event.key.toLowerCase() === 'r' && !el.rollBtn.disabled) takeTurn();
   if (event.key.toLowerCase() === 'e' && !el.endBtn.disabled) endTurn();
+});
+
+document.addEventListener('fullscreenchange', () => {
+  el.fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
 });
 
 initNameInputs();
