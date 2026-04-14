@@ -15,7 +15,13 @@
           <p class="eyebrow">Premium Local Multiplayer</p>
           <h1>MONOPOLY</h1>
         </div>
+        <div id="hudStats" class="hud-stats" aria-live="polite">
+          <div class="hud-chip"><span>Turn</span><strong id="turnCountLabel">1</strong></div>
+          <div class="hud-chip"><span>Players</span><strong id="activePlayersLabel">0</strong></div>
+          <div class="hud-chip"><span>Pot</span><strong id="potLabel">$0</strong></div>
+        </div>
         <div class="top-actions">
+          <button id="fullscreenBtn" class="btn subtle">Fullscreen</button>
           <button id="motionBtn" class="btn subtle">Motion On</button>
           <button id="musicBtn" class="btn subtle">🎷 Jazz On</button>
           <button id="rulesBtn" class="btn subtle">Rules</button>
@@ -26,6 +32,11 @@
       <section id="setupPanel" class="panel glass reveal">
         <h2>Start a Game</h2>
         <p class="muted">Designed for table play on one PC. Smooth state-driven transitions keep turns clear and focused.</p>
+        <div class="setup-notes">
+          <p>✅ Best with fullscreen enabled for table play.</p>
+          <p>✅ Recommended: turn motion off on slower laptops.</p>
+          <p>✅ Jazz starts after a user click (browser audio rule).</p>
+        </div>
         <div class="setup-grid">
           <label for="playerCount">Players</label>
           <select id="playerCount">
@@ -53,6 +64,11 @@
           <section class="panel glass reveal parallax-card">
             <h2>Turn Controls</h2>
             <div id="turnInfo"></div>
+            <div id="diceTray" class="dice-tray" aria-live="polite">
+              <div class="die" id="dieOne" data-value="1"></div>
+              <div class="die" id="dieTwo" data-value="1"></div>
+              <div class="roll-total" id="rollTotal">Roll: --</div>
+            </div>
             <div class="actions">
               <button id="rollBtn" class="btn primary">Roll Dice</button>
               <button id="endBtn" class="btn" disabled>End Turn</button>
@@ -75,6 +91,13 @@
             </div>
             <div id="log" class="log"></div>
           </section>
+
+          <section class="panel glass reveal parallax-card">
+            <h2>Space Inspector</h2>
+            <div id="spaceInspector" class="inspector">
+              <p class="muted">Click any board space to view details.</p>
+            </div>
+          </section>
         </aside>
       </main>
     </div>
@@ -89,14 +112,33 @@
     </dialog>
 
     <dialog id="rulesModal" class="glass">
-      <h3>Quick Rules</h3>
-      <ul>
-        <li>Roll 2 dice and move clockwise.</li>
-        <li>Passing GO grants $200.</li>
-        <li>Buy unowned properties, or pay owner rent.</li>
-        <li>A full color set doubles base rent.</li>
-        <li>Taxes feed Free Parking. Last active player wins.</li>
-      </ul>
+      <h3>How to Play</h3>
+      <div class="rules-layout">
+        <section>
+          <h4>Turn Flow</h4>
+          <ul>
+            <li>Roll 2 dice and move clockwise.</li>
+            <li>Passing GO grants $200.</li>
+            <li>Buy unowned properties when prompted.</li>
+          </ul>
+        </section>
+        <section>
+          <h4>Rent & Sets</h4>
+          <ul>
+            <li>Land on owned property? Pay rent.</li>
+            <li>Railroads scale with railroad count.</li>
+            <li>Owning a full color set doubles base property rent.</li>
+          </ul>
+        </section>
+        <section>
+          <h4>Special Spaces</h4>
+          <ul>
+            <li>Chance/Community cards can reward or charge cash.</li>
+            <li>Taxes feed the Free Parking pot.</li>
+            <li>Go To Jail sends your token directly to Jail.</li>
+          </ul>
+        </section>
+      </div>
       <button id="rulesClose" class="btn primary">Got It</button>
     </dialog>
 

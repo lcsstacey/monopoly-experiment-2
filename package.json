@@ -1,0 +1,23 @@
+{
+  "name": "monopoly-family-edition",
+  "version": "1.1.1",
+  "description": "Monopoly Family Edition desktop build (Electron)",
+  "main": "electron/main.js",
+  "author": "Monopoly Family Edition Contributors",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "pack": "electron-builder --dir --config electron-builder.config.cjs",
+    "dist": "electron-builder --config electron-builder.config.cjs",
+    "dist:win": "electron-builder --config electron-builder.config.cjs --win nsis --x64",
+    "dist:mac": "electron-builder --config electron-builder.config.cjs --mac dmg",
+    "dist:linux": "electron-builder --config electron-builder.config.cjs --linux AppImage",
+    "qa": "node scripts/qa-check.mjs",
+    "test": "npm run qa"
+  },
+  "devDependencies": {
+    "electron": "^36.2.1",
+    "electron-builder": "^24.13.3"
+  }
+}
