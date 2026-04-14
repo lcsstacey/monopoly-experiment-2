@@ -446,6 +446,7 @@ async function takeTurn() {
   const roll = d1 + d2;
   await animateDice(d1, d2);
   playRollFx(roll);
+  state.dice = [d1, d2];
   state.lastRoll = `${d1} + ${d2} = ${roll}`;
   state.rolled = true;
 
@@ -583,6 +584,13 @@ function loadSavedGame() {
     const safeD1 = Number.isFinite(parsedDice[0]) ? Math.min(Math.max(Math.floor(parsedDice[0]), 1), 6) : 1;
     const safeD2 = Number.isFinite(parsedDice[1]) ? Math.min(Math.max(Math.floor(parsedDice[1]), 1), 6) : 1;
     state.dice = [safeD1, safeD2];
+
+    if (state.players.every((p) => p.bankrupt)) {
+      state.players[0].bankrupt = false;
+    }
+    if (state.players[state.current].bankrupt) {
+      state.current = nextActivePlayer();
+    }
 
     if (state.players.every((p) => p.bankrupt)) {
       state.players[0].bankrupt = false;
