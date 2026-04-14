@@ -23,9 +23,46 @@ A polished browser-based Monopoly experience built for local multiplayer (hot-se
 - Autosave + manual save to `localStorage`.
 - Quick rules modal and activity log controls.
 
-## Run
+## Desktop distribution (Electron)
 
-No build required.
+This repo now includes an Electron wrapper so you can package the game as a desktop app (`.exe` on Windows).
+
+### Setup
+
+```bash
+npm install
+```
+
+### Run locally as desktop app
+
+```bash
+npm run start
+```
+
+### Build distributables
+
+```bash
+npm run dist       # Builds for current OS
+npm run dist:win   # Windows NSIS installer (.exe)
+npm run dist:mac   # macOS DMG
+npm run dist:linux # Linux AppImage
+```
+
+Build outputs are generated in `dist/`.
+
+## Steam readiness checklist
+
+For Steam release, this project now covers the desktop packaging baseline. You should still complete:
+
+1. Create Steamworks app and upload builds via SteamPipe.
+2. Add platform icons, installer branding, and legal metadata.
+3. Add crash reporting and analytics.
+4. Perform QA on clean Windows machines and gamepad input if desired.
+5. Prepare store assets (capsules, trailers, screenshots) and age ratings if applicable.
+
+## Browser run (no build)
+
+You can still run without Electron:
 
 1. Open `index.html` directly in a browser, or run a static server:
    - `python3 -m http.server 8080`

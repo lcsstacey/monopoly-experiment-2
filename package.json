@@ -1,0 +1,47 @@
+{
+  "name": "monopoly-family-edition",
+  "version": "1.0.0",
+  "description": "Monopoly Family Edition desktop build (Electron)",
+  "main": "electron/main.js",
+  "author": "Monopoly Family Edition Contributors",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:linux": "electron-builder --linux AppImage"
+  },
+  "build": {
+    "appId": "com.familyedition.monopoly",
+    "productName": "Monopoly Family Edition",
+    "files": [
+      "index.html",
+      "styles.css",
+      "script.js",
+      "electron/**/*",
+      "README.md",
+      "LICENSE"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^36.2.1",
+    "electron-builder": "^24.13.3"
+  }
+}
