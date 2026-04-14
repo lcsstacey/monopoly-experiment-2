@@ -1,6 +1,6 @@
 {
   "name": "monopoly-family-edition",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "Monopoly Family Edition desktop build (Electron)",
   "main": "electron/main.js",
   "author": "Monopoly Family Edition Contributors",
@@ -8,37 +8,11 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "dist:win": "electron-builder --win nsis",
-    "dist:mac": "electron-builder --mac dmg",
-    "dist:linux": "electron-builder --linux AppImage"
-  },
-  "build": {
-    "appId": "com.familyedition.monopoly",
-    "productName": "Monopoly Family Edition",
-    "files": [
-      "index.html",
-      "styles.css",
-      "script.js",
-      "electron/**/*",
-      "README.md",
-      "LICENSE"
-    ],
-    "directories": {
-      "buildResources": "build"
-    },
-    "win": {
-      "target": [
-        "nsis"
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    }
+    "pack": "electron-builder --dir --config electron-builder.config.cjs",
+    "dist": "electron-builder --config electron-builder.config.cjs",
+    "dist:win": "electron-builder --config electron-builder.config.cjs --win nsis --x64",
+    "dist:mac": "electron-builder --config electron-builder.config.cjs --mac dmg",
+    "dist:linux": "electron-builder --config electron-builder.config.cjs --linux AppImage"
   },
   "devDependencies": {
     "electron": "^36.2.1",
