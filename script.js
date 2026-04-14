@@ -59,10 +59,12 @@ const state = {
   current: 0,
   rolled: false,
   gameOver: false,
+  processingTurn: false,
   lastRoll: null,
   freeParkingPot: 0,
   musicOn: false,
   motionOn: true,
+  dice: [1, 1],
 };
 
 const el = {
@@ -93,6 +95,9 @@ const el = {
   modalYes: document.getElementById('modalYes'),
   modalNo: document.getElementById('modalNo'),
   fxCanvas: document.getElementById('fxCanvas'),
+  dieOne: document.getElementById('dieOne'),
+  dieTwo: document.getElementById('dieTwo'),
+  rollTotal: document.getElementById('rollTotal'),
 };
 
 let audioCtx;
@@ -243,10 +248,18 @@ function renderTurnInfo() {
   el.turnInfo.innerHTML = `<strong>${p.name}</strong><br>Position: ${BOARD[p.pos].name}<br>${state.lastRoll ? `Last roll: ${state.lastRoll}` : 'Roll the dice.'}`;
 }
 
+function renderDice() {
+  const [d1, d2] = state.dice;
+  el.dieOne.dataset.value = String(d1);
+  el.dieTwo.dataset.value = String(d2);
+  el.rollTotal.textContent = state.lastRoll ? `Roll: ${d1} + ${d2} = ${d1 + d2}` : 'Roll: --';
+}
+
 function refresh() {
   renderBoard();
   renderPlayers();
   renderTurnInfo();
+  renderDice();
 }
 
 function nextActivePlayer() {
@@ -260,6 +273,7 @@ function nextActivePlayer() {
 
 function showDecision({ title, text, yesLabel = 'Buy', noLabel = 'Skip' }) {
   return new Promise((resolve) => {
+    if (el.modal.open) el.modal.close();
     el.modalTitle.textContent = title;
     el.modalText.textContent = text;
     el.modalYes.textContent = yesLabel;
@@ -268,18 +282,19 @@ function showDecision({ title, text, yesLabel = 'Buy', noLabel = 'Skip' }) {
     const cleanup = () => {
       el.modalYes.onclick = null;
       el.modalNo.onclick = null;
+      el.modal.onclose = null;
+      el.modal.oncancel = null;
     };
 
-    el.modalYes.onclick = () => {
+    const closeWith = (result) => {
       cleanup();
-      el.modal.close();
-      resolve(true);
+      if (el.modal.open) el.modal.close();
+      resolve(result);
     };
-    el.modalNo.onclick = () => {
-      cleanup();
-      el.modal.close();
-      resolve(false);
-    };
+    el.modalYes.onclick = () => closeWith(true);
+    el.modalNo.onclick = () => closeWith(false);
+    el.modal.oncancel = () => closeWith(false);
+    el.modal.onclose = () => closeWith(false);
 
     el.modal.showModal();
   });
@@ -363,7 +378,7 @@ async function resolveLanding(player, roll) {
 }
 
 async function takeTurn() {
-  if (state.gameOver) return;
+  if (state.gameOver || state.processingTurn || !state.players.length) return;
   const player = state.players[state.current];
   if (player.bankrupt) {
     state.current = nextActivePlayer();
@@ -371,9 +386,13 @@ async function takeTurn() {
     return;
   }
 
+  state.processingTurn = true;
+  el.rollBtn.disabled = true;
+
   const d1 = 1 + Math.floor(Math.random() * 6);
   const d2 = 1 + Math.floor(Math.random() * 6);
   const roll = d1 + d2;
+  state.dice = [d1, d2];
   state.lastRoll = `${d1} + ${d2} = ${roll}`;
   state.rolled = true;
 
@@ -384,13 +403,15 @@ async function takeTurn() {
     log(`${player.name} passed GO and collected $200.`);
   }
 
-  log(`🎲 ${player.name} rolled ${state.lastRoll}.`);
-  await resolveLanding(player, roll);
-
-  el.rollBtn.disabled = true;
-  el.endBtn.disabled = false;
-  refresh();
-  autoSave();
+  try {
+    log(`🎲 ${player.name} rolled ${state.lastRoll}.`);
+    await resolveLanding(player, roll);
+    el.endBtn.disabled = false;
+    refresh();
+    autoSave();
+  } finally {
+    state.processingTurn = false;
+  }
 }
 
 function endTurn() {
@@ -415,7 +436,15 @@ function startGame() {
     bankrupt: false,
   }));
 
-  Object.assign(state, { current: 0, rolled: false, gameOver: false, lastRoll: null, freeParkingPot: 0 });
+  Object.assign(state, {
+    current: 0,
+    rolled: false,
+    gameOver: false,
+    processingTurn: false,
+    lastRoll: null,
+    freeParkingPot: 0,
+    dice: [1, 1],
+  });
   el.log.innerHTML = '';
   log('Welcome to Monopoly Family Edition.');
   el.setupPanel.classList.add('hidden');
@@ -428,10 +457,23 @@ function startGame() {
 
 function restart() {
   state.players = [];
-  Object.assign(state, { current: 0, rolled: false, gameOver: false, lastRoll: null, freeParkingPot: 0 });
+  Object.assign(state, {
+    current: 0,
+    rolled: false,
+    gameOver: false,
+    processingTurn: false,
+    lastRoll: null,
+    freeParkingPot: 0,
+    dice: [1, 1],
+  });
   el.setupPanel.classList.remove('hidden');
   el.gameLayout.classList.add('hidden');
   el.log.innerHTML = '';
+  if (el.modal.open) el.modal.close();
+  if (el.rulesModal.open) el.rulesModal.close();
+  el.rollBtn.disabled = true;
+  el.endBtn.disabled = true;
+  setTurnPill('Setup', '#64748b');
   initNameInputs();
   localStorage.removeItem(SAVE_KEY);
 }
@@ -444,6 +486,7 @@ function serializeState() {
     gameOver: state.gameOver,
     lastRoll: state.lastRoll,
     freeParkingPot: state.freeParkingPot,
+    dice: state.dice,
   });
 }
 
@@ -458,12 +501,37 @@ function loadSavedGame() {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed.players) || parsed.players.length < 2) return false;
-    state.players = parsed.players;
-    state.current = Number(parsed.current) || 0;
+    state.players = parsed.players
+      .filter((p) => p && typeof p === 'object')
+      .map((p, idx) => ({
+        id: Number.isInteger(p.id) ? p.id : idx,
+        name: (typeof p.name === 'string' && p.name.trim()) ? p.name : `Player ${idx + 1}`,
+        color: typeof p.color === 'string' ? p.color : COLORS[idx % COLORS.length],
+        cash: Number.isFinite(p.cash) ? p.cash : START_CASH,
+        pos: Number.isFinite(p.pos) ? ((Math.floor(p.pos) % 40) + 40) % 40 : 0,
+        properties: Array.isArray(p.properties)
+          ? [...new Set(p.properties.filter((space) => Number.isInteger(space) && space >= 0 && space < BOARD.length))]
+          : [],
+        bankrupt: Boolean(p.bankrupt),
+      }));
+    if (state.players.length < 2) return false;
+    state.current = Math.min(Math.max(Number(parsed.current) || 0, 0), state.players.length - 1);
     state.rolled = Boolean(parsed.rolled);
     state.gameOver = Boolean(parsed.gameOver);
+    state.processingTurn = false;
     state.lastRoll = parsed.lastRoll || null;
     state.freeParkingPot = Number(parsed.freeParkingPot) || 0;
+    const parsedDice = Array.isArray(parsed.dice) ? parsed.dice : [1, 1];
+    const safeD1 = Number.isFinite(parsedDice[0]) ? Math.min(Math.max(Math.floor(parsedDice[0]), 1), 6) : 1;
+    const safeD2 = Number.isFinite(parsedDice[1]) ? Math.min(Math.max(Math.floor(parsedDice[1]), 1), 6) : 1;
+    state.dice = [safeD1, safeD2];
+
+    if (state.players.every((p) => p.bankrupt)) {
+      state.players[0].bankrupt = false;
+    }
+    if (state.players[state.current].bankrupt) {
+      state.current = nextActivePlayer();
+    }
 
     el.setupPanel.classList.add('hidden');
     el.gameLayout.classList.remove('hidden');
@@ -499,7 +567,9 @@ function toggleMusic() {
     return;
   }
 
-  const playNote = (freq, dur = 0.2, gainValue = 0.02, type = 'triangle') => {
+  audioCtx.resume();
+
+  const playNote = (freq, dur = 0.2, gainValue = 0.04, type = 'triangle') => {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = type;
@@ -520,10 +590,10 @@ function toggleMusic() {
   let step = 0;
   jazzTimer = setInterval(() => {
     const chord = progression[step % progression.length];
-    playNote(chord[0], 0.3, 0.014, 'sine');
-    playNote(chord[1], 0.24, 0.011, 'triangle');
-    playNote(chord[2], 0.18, 0.01, 'square');
-    if (step % 2 === 0) playNote(chord[0] / 2, 0.14, 0.013, 'sawtooth');
+    playNote(chord[0], 0.3, 0.04, 'sine');
+    playNote(chord[1], 0.24, 0.032, 'triangle');
+    playNote(chord[2], 0.18, 0.03, 'square');
+    if (step % 2 === 0) playNote(chord[0] / 2, 0.14, 0.036, 'sawtooth');
     step += 1;
   }, 480);
 
@@ -653,6 +723,9 @@ el.rulesBtn.addEventListener('click', () => el.rulesModal.showModal());
 el.rulesClose.addEventListener('click', () => el.rulesModal.close());
 
 document.addEventListener('keydown', (event) => {
+  const target = event.target;
+  if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+  if (el.modal.open || el.rulesModal.open) return;
   if (event.key.toLowerCase() === 'r' && !el.rollBtn.disabled) takeTurn();
   if (event.key.toLowerCase() === 'e' && !el.endBtn.disabled) endTurn();
 });
