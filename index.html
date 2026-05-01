@@ -4,16 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Monopoly — Family Edition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <canvas id="fxCanvas" aria-hidden="true"></canvas>
+    <canvas id="confettiCanvas" aria-hidden="true"></canvas>
 
     <div class="app-shell">
       <header class="topbar glass">
-        <div>
-          <p class="eyebrow">Premium Local Multiplayer</p>
-          <h1>MONOPOLY</h1>
+        <div class="topbar-brand">
+          <div class="brand-icon">M</div>
+          <div>
+            <p class="eyebrow">Family Edition</p>
+            <h1>MONOPOLY</h1>
+          </div>
         </div>
         <div id="hudStats" class="hud-stats" aria-live="polite">
           <div class="hud-chip"><span>Turn</span><strong id="turnCountLabel">1</strong></div>
@@ -23,7 +30,7 @@
         <div class="top-actions">
           <button id="fullscreenBtn" class="btn subtle">Fullscreen</button>
           <button id="motionBtn" class="btn subtle">Motion On</button>
-          <button id="musicBtn" class="btn subtle">🎷 Jazz On</button>
+          <button id="musicBtn" class="btn subtle">Ambient On</button>
           <button id="rulesBtn" class="btn subtle">Rules</button>
           <button id="restartBtn" class="btn subtle">Restart</button>
         </div>
@@ -31,11 +38,11 @@
 
       <section id="setupPanel" class="panel glass reveal">
         <h2>Start a Game</h2>
-        <p class="muted">Designed for table play on one PC. Smooth state-driven transitions keep turns clear and focused.</p>
+        <p class="setup-subtitle">Premium local multiplayer &mdash; designed for table play on one device.</p>
         <div class="setup-notes">
-          <p>✅ Best with fullscreen enabled for table play.</p>
-          <p>✅ Recommended: turn motion off on slower laptops.</p>
-          <p>✅ Jazz starts after a user click (browser audio rule).</p>
+          <p>Best with fullscreen enabled for table play.</p>
+          <p>Turn motion off on slower devices for smoother performance.</p>
+          <p>Ambient sound starts after first interaction.</p>
         </div>
         <div class="setup-grid">
           <label for="playerCount">Players</label>
@@ -65,15 +72,13 @@
             <h2>Turn Controls</h2>
             <div id="turnInfo"></div>
             <div id="diceTray" class="dice-tray" aria-live="polite">
-              <div class="die" id="dieOne" data-value="1"></div>
-              <div class="die" id="dieTwo" data-value="1"></div>
-              <div class="roll-total" id="rollTotal">Roll: --</div>
+              <div class="roll-total" id="rollTotal">--</div>
             </div>
             <div class="actions">
-              <button id="rollBtn" class="btn primary">Roll Dice</button>
-              <button id="endBtn" class="btn" disabled>End Turn</button>
+              <button id="rollBtn" class="btn primary" style="flex:1">Roll Dice</button>
+              <button id="endBtn" class="btn" style="flex:1" disabled>End Turn</button>
             </div>
-            <p class="hint">Press <kbd>R</kbd> to roll and <kbd>E</kbd> to end turn.</p>
+            <p class="hint">Press <kbd>R</kbd> to roll &middot; <kbd>E</kbd> to end turn</p>
           </section>
 
           <section class="panel glass reveal parallax-card">
@@ -95,7 +100,7 @@
           <section class="panel glass reveal parallax-card">
             <h2>Space Inspector</h2>
             <div id="spaceInspector" class="inspector">
-              <p class="muted">Click any board space to view details.</p>
+              <p class="muted" style="font-size:0.82rem">Click any board space to view details.</p>
             </div>
           </section>
         </aside>
@@ -123,7 +128,7 @@
           </ul>
         </section>
         <section>
-          <h4>Rent & Sets</h4>
+          <h4>Rent &amp; Sets</h4>
           <ul>
             <li>Land on owned property? Pay rent.</li>
             <li>Railroads scale with railroad count.</li>
@@ -139,8 +144,10 @@
           </ul>
         </section>
       </div>
-      <button id="rulesClose" class="btn primary">Got It</button>
+      <button id="rulesClose" class="btn primary" style="width:100%">Got It</button>
     </dialog>
+
+    <div id="toastContainer" class="toast-container"></div>
 
     <script src="script.js"></script>
   </body>

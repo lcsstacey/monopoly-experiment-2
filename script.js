@@ -1,3 +1,8 @@
+/* ═══════════════════════════════════════════════════════
+   MONOPOLY — Family Edition (Premium Enhanced UI)
+   ═══════════════════════════════════════════════════════ */
+
+// ─── BOARD DATA ───
 const BOARD = [
   { name: 'GO', type: 'corner' },
   { name: 'Mediterranean', type: 'property', price: 60, rent: 8, color: '#8b5a2b' },
@@ -58,8 +63,28 @@ const CHANCE = [
 
 const START_CASH = 1500;
 const SAVE_KEY = 'monopoly-family-edition-save';
-const COLORS = ['#60a5fa', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb7185'];
+const COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a78bfa', '#fb7185'];
 
+// ─── 3D DICE CONFIG ───
+const FACE_ROTATIONS = {
+  1: { x: 0, y: 0 },
+  2: { x: 0, y: -90 },
+  3: { x: -90, y: 0 },
+  4: { x: 90, y: 0 },
+  5: { x: 0, y: 90 },
+  6: { x: 0, y: 180 },
+};
+
+const PIP_LAYOUTS = {
+  1: [[2,2]],
+  2: [[1,3],[3,1]],
+  3: [[1,3],[2,2],[3,1]],
+  4: [[1,1],[1,3],[3,1],[3,3]],
+  5: [[1,1],[1,3],[2,2],[3,1],[3,3]],
+  6: [[1,1],[1,3],[2,1],[2,3],[3,1],[3,3]],
+};
+
+// ─── STATE ───
 const state = {
   players: [],
   current: 0,
@@ -74,6 +99,9 @@ const state = {
   dice: [1, 1],
 };
 
+let inspectedIdx = null;
+
+// ─── DOM REFS ───
 const el = {
   board: document.getElementById('board'),
   boardPanel: document.getElementById('boardPanel'),
@@ -103,28 +131,80 @@ const el = {
   modalYes: document.getElementById('modalYes'),
   modalNo: document.getElementById('modalNo'),
   fxCanvas: document.getElementById('fxCanvas'),
-  dieOne: document.getElementById('dieOne'),
-  dieTwo: document.getElementById('dieTwo'),
+  confettiCanvas: document.getElementById('confettiCanvas'),
+  diceTray: document.getElementById('diceTray'),
+  dieOne: null,
+  dieTwo: null,
   rollTotal: document.getElementById('rollTotal'),
   turnCountLabel: document.getElementById('turnCountLabel'),
   activePlayersLabel: document.getElementById('activePlayersLabel'),
   potLabel: document.getElementById('potLabel'),
+  toastContainer: document.getElementById('toastContainer'),
+  spaceInspector: document.getElementById('spaceInspector'),
 };
 
+// ─── AUDIO ───
 let audioCtx;
 let jazzTimer;
+let ambientNodes = null;
 
+// ─── 3D DICE BUILDER ───
+function createDieCube(id) {
+  const scene = document.createElement('div');
+  scene.className = 'die-scene';
+  const cube = document.createElement('div');
+  cube.className = 'die-cube';
+  cube.id = id;
+
+  for (let v = 1; v <= 6; v += 1) {
+    const face = document.createElement('div');
+    face.className = `die-face die-f${v}`;
+    PIP_LAYOUTS[v].forEach(([r, c]) => {
+      const pip = document.createElement('span');
+      pip.className = 'pip';
+      pip.style.gridRow = r;
+      pip.style.gridColumn = c;
+      face.appendChild(pip);
+    });
+    cube.appendChild(face);
+  }
+
+  scene.appendChild(cube);
+  return scene;
+}
+
+function initDice() {
+  el.diceTray.insertBefore(createDieCube('dieOne'), el.rollTotal);
+  el.diceTray.insertBefore(createDieCube('dieTwo'), el.rollTotal);
+  el.dieOne = document.getElementById('dieOne');
+  el.dieTwo = document.getElementById('dieTwo');
+}
+
+function getDieTransform(value) {
+  const r = FACE_ROTATIONS[value];
+  return `rotateX(${r.x}deg) rotateY(${r.y}deg)`;
+}
+
+// ─── SETUP ───
 function initNameInputs() {
   const count = Number(el.playerCount.value);
   el.nameInputs.innerHTML = '';
   for (let i = 0; i < count; i += 1) {
+    const row = document.createElement('div');
+    row.className = 'name-input-row';
+    const dot = document.createElement('div');
+    dot.className = 'color-dot';
+    dot.style.background = COLORS[i];
     const input = document.createElement('input');
     input.value = `Player ${i + 1}`;
     input.placeholder = `Player ${i + 1}`;
-    el.nameInputs.appendChild(input);
+    row.appendChild(dot);
+    row.appendChild(input);
+    el.nameInputs.appendChild(row);
   }
 }
 
+// ─── BOARD HELPERS ───
 function boardPos(i) {
   if (i === 0) return { r: 11, c: 11 };
   if (i <= 9) return { r: 11, c: 11 - i };
@@ -164,29 +244,159 @@ function netWorth(player) {
   return player.cash + assets;
 }
 
-function log(message) {
-  const line = document.createElement('p');
-  line.textContent = message;
-  el.log.prepend(line);
+// ─── TOAST SYSTEM ───
+function showToast(message, type) {
+  const colors = { success: '#34d399', danger: '#f87171', info: '#60a5fa', gold: '#c9a84c' };
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<div class="toast-accent" style="background:${colors[type] || colors.info}"></div><span>${message}</span>`;
+  el.toastContainer.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('exit');
+    setTimeout(() => toast.remove(), 300);
+  }, 3200);
 }
 
-function setTurnPill(text, color = '#475569') {
+// ─── CONFETTI ───
+function launchConfetti() {
+  const canvas = el.confettiCanvas;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  canvas.width = Math.floor(w * dpr);
+  canvas.height = Math.floor(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const pieces = [];
+  const palette = ['#c9a84c', '#e0c56c', '#3b82f6', '#ef4444', '#22c55e', '#a78bfa', '#fbbf24', '#fb7185'];
+
+  for (let i = 0; i < 160; i += 1) {
+    pieces.push({
+      x: Math.random() * w,
+      y: Math.random() * h * -1.2,
+      vx: (Math.random() - 0.5) * 5,
+      vy: Math.random() * 3 + 2.5,
+      size: Math.random() * 7 + 3,
+      color: palette[Math.floor(Math.random() * palette.length)],
+      rot: Math.random() * 360,
+      rotV: (Math.random() - 0.5) * 10,
+      life: 1,
+    });
+  }
+
+  let frame = 0;
+  const maxFrames = 200;
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    frame += 1;
+    let alive = 0;
+
+    pieces.forEach((p) => {
+      if (p.life <= 0) return;
+      alive += 1;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.04;
+      p.rot += p.rotV;
+      if (frame > maxFrames * 0.55) p.life -= 0.015;
+
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate((p.rot * Math.PI) / 180);
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      ctx.restore();
+    });
+
+    if (alive > 0 && frame < maxFrames + 120) {
+      requestAnimationFrame(draw);
+    } else {
+      ctx.clearRect(0, 0, w, h);
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+
+// ─── WIN OVERLAY ───
+function showWinOverlay(winner) {
+  const existing = document.querySelector('.win-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'win-overlay';
+  overlay.innerHTML = `
+    <div class="win-card">
+      <div class="win-trophy">&#127942;</div>
+      <div class="win-title">${winner.name} Wins!</div>
+      <div class="win-subtitle">Net Worth: $${netWorth(winner)}</div>
+      <button class="btn primary" style="width:100%">Continue</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('.btn').addEventListener('click', () => overlay.remove());
+}
+
+// ─── LOGGING ───
+function log(message) {
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+
+  let dotColor = 'var(--text-muted)';
+  if (message.includes('bought') || message.includes('collected') || message.includes('Collect') || message.includes('$200')) {
+    dotColor = 'var(--green)';
+  } else if (message.includes('paid') || message.includes('Pay') || message.includes('bankrupt') || message.includes('Jail')) {
+    dotColor = 'var(--red)';
+  } else if (message.includes('rolled') || message.includes('landed')) {
+    dotColor = 'var(--blue)';
+  } else if (message.includes('wins') || message.includes('Free Parking')) {
+    dotColor = 'var(--gold)';
+  }
+
+  entry.innerHTML = `<div class="log-dot" style="background:${dotColor}"></div><span>${message}</span>`;
+  el.log.prepend(entry);
+}
+
+function setTurnPill(text, color) {
+  color = color || '#475569';
   el.turnPill.textContent = text;
   el.turnPill.style.borderColor = color;
   el.turnPill.style.boxShadow = `0 0 0 1px ${color}44`;
 }
 
+// ─── RENDERING ───
 function renderBoard() {
   el.board.innerHTML = '';
   BOARD.forEach((space, idx) => {
     const node = document.createElement('div');
     const pos = boardPos(idx);
-    node.className = `cell ${['property', 'railroad', 'utility'].includes(space.type) ? 'property' : ''} ${['corner', 'gotojail'].includes(space.type) ? 'corner' : ''}`;
+    const isOwnable = ['property', 'railroad', 'utility'].includes(space.type);
+    const isCorner = ['corner', 'gotojail'].includes(space.type);
+
+    node.className = `cell${isOwnable ? ' property' : ''}${isCorner ? ' corner' : ''}`;
+
+    if (idx >= 1 && idx <= 9) node.classList.add('side-bottom');
+    else if (idx >= 11 && idx <= 19) node.classList.add('side-left');
+    else if (idx >= 21 && idx <= 29) node.classList.add('side-top');
+    else if (idx >= 31 && idx <= 39) node.classList.add('side-right');
+
     if (!state.gameOver && state.players[state.current] && state.players[state.current].pos === idx) {
       node.classList.add('current-space');
     }
+    if (inspectedIdx === idx) {
+      node.classList.add('inspected');
+    }
+
     node.style.gridRow = pos.r;
     node.style.gridColumn = pos.c;
+
+    if (space.color) {
+      node.style.background = `linear-gradient(150deg, ${space.color}14, transparent 55%), linear-gradient(150deg, #13131f, #0b0b14)`;
+    }
+
     node.innerHTML = `<div class="name">${space.name}</div>${space.price ? `<div class="price">$${space.price}</div>` : ''}`;
 
     if (space.color) {
@@ -206,19 +416,26 @@ function renderBoard() {
 
     const tokens = document.createElement('div');
     tokens.className = 'tokens';
+    const currentPlayer = state.players[state.current];
     state.players.filter((p) => !p.bankrupt && p.pos === idx).forEach((p) => {
       const token = document.createElement('div');
-      token.className = 'token';
+      token.className = `token${currentPlayer && p.id === currentPlayer.id ? ' active-player' : ''}`;
       token.style.background = p.color;
       tokens.appendChild(token);
     });
     node.appendChild(tokens);
+
+    node.addEventListener('click', () => inspectSpace(idx));
     el.board.appendChild(node);
   });
 
   const center = document.createElement('div');
   center.className = 'board-center';
-  center.innerHTML = `<div class="board-logo">MONOPOLY</div><div class="board-tag">Family Edition • Free Parking Pot: $${state.freeParkingPot}</div>`;
+  center.innerHTML = `
+    <div class="board-logo">MONOPOLY</div>
+    <div class="board-tag">Family Edition</div>
+    ${state.freeParkingPot > 0 ? `<div class="board-pot">Free Parking: $${state.freeParkingPot}</div>` : ''}
+  `;
   el.board.appendChild(center);
 }
 
@@ -228,22 +445,40 @@ function renderPlayers() {
     state.gameOver = true;
     const winner = alive[0];
     if (winner) {
-      log(`🏆 ${winner.name} wins with net worth $${netWorth(winner)}.`);
+      log(`${winner.name} wins with net worth $${netWorth(winner)}.`);
       setTurnPill('Game Over', winner.color);
+      showWinOverlay(winner);
+      launchConfetti();
+      playSfx('win');
     }
   }
 
   const sorted = [...state.players].sort((a, b) => netWorth(b) - netWorth(a));
+  const maxNW = Math.max(...sorted.map((p) => netWorth(p)), 1);
+
   el.playersPanel.innerHTML = '';
-  sorted.forEach((p) => {
+  sorted.forEach((p, rank) => {
+    const nw = netWorth(p);
+    const pct = ((nw / maxNW) * 100).toFixed(1);
+    const initial = p.name.charAt(0).toUpperCase();
+    const isActive = p.id === state.current && !state.gameOver;
+
     const card = document.createElement('div');
-    card.className = `player-card ${p.id === state.current && !state.gameOver ? 'active' : ''}`;
+    card.className = `player-card${isActive ? ' active' : ''}${p.bankrupt ? ' bankrupt' : ''}`;
     card.innerHTML = `
-      <div class="player-title">
-        <strong>${p.name}${p.bankrupt ? ' (Out)' : ''}</strong>
-        <span style="color:${p.color};font-weight:700">●</span>
+      <div class="player-header">
+        <div class="player-avatar" style="background:${p.color}">${initial}</div>
+        <div class="player-info">
+          <div class="player-name">${p.name}${p.bankrupt ? ' (Out)' : ''}</div>
+          <div class="player-stats">
+            <span>$${p.cash}</span>
+            <span>${p.properties.length} props</span>
+            <span>$${nw} net</span>
+          </div>
+        </div>
+        <div class="player-rank" style="${isActive ? 'color:var(--gold)' : ''}">#${rank + 1}</div>
       </div>
-      <div class="player-meta">Cash: $${p.cash} · Props: ${p.properties.length} · Net Worth: $${netWorth(p)}</div>
+      ${!p.bankrupt ? `<div class="nw-bar"><div class="nw-fill" style="--nw-pct:${pct}%;${isActive ? `background:linear-gradient(90deg,${p.color}88,${p.color})` : ''}"></div></div>` : ''}
     `;
     el.playersPanel.appendChild(card);
   });
@@ -259,14 +494,14 @@ function renderTurnInfo() {
 
   const p = state.players[state.current];
   setTurnPill(`${p.name}'s turn`, p.color);
-  el.turnInfo.innerHTML = `<strong>${p.name}</strong><br>Position: ${BOARD[p.pos].name}<br>${state.lastRoll ? `Last roll: ${state.lastRoll}` : 'Roll the dice.'}`;
+  el.turnInfo.innerHTML = `<strong style="color:${p.color}">${p.name}</strong><br>Position: ${BOARD[p.pos].name}<br>${state.lastRoll ? `Last roll: ${state.lastRoll}` : 'Roll the dice.'}`;
 }
 
 function renderDice() {
   const [d1, d2] = state.dice;
-  el.dieOne.dataset.value = String(d1);
-  el.dieTwo.dataset.value = String(d2);
-  el.rollTotal.textContent = state.lastRoll ? `Roll: ${d1} + ${d2} = ${d1 + d2}` : 'Roll: --';
+  if (el.dieOne) el.dieOne.style.transform = getDieTransform(d1);
+  if (el.dieTwo) el.dieTwo.style.transform = getDieTransform(d2);
+  el.rollTotal.textContent = state.lastRoll ? `${d1} + ${d2} = ${d1 + d2}` : '--';
 }
 
 function renderHud() {
@@ -284,6 +519,7 @@ function refresh() {
   renderHud();
 }
 
+// ─── GAME LOGIC ───
 function nextActivePlayer() {
   let idx = state.current;
   for (let i = 0; i < state.players.length; i += 1) {
@@ -293,7 +529,9 @@ function nextActivePlayer() {
   return idx;
 }
 
-function showDecision({ title, text, yesLabel = 'Buy', noLabel = 'Skip' }) {
+function showDecision({ title, text, yesLabel, noLabel }) {
+  yesLabel = yesLabel || 'Buy';
+  noLabel = noLabel || 'Skip';
   return new Promise((resolve) => {
     if (el.modal.open) el.modal.close();
     el.modalTitle.textContent = title;
@@ -327,13 +565,14 @@ function bankruptIfNeeded(player) {
   player.bankrupt = true;
   player.cash = 0;
   player.properties = [];
-  log(`💥 ${player.name} is bankrupt and removed from the game.`);
+  log(`${player.name} is bankrupt and removed from the game.`);
+  showToast(`${player.name} is bankrupt!`, 'danger');
 }
 
 function handleCard(player) {
   const card = CHANCE[Math.floor(Math.random() * CHANCE.length)];
   card.fn(player);
-  log(`🎴 ${player.name}: ${card.text}`);
+  log(`${player.name}: ${card.text}`);
   bankruptIfNeeded(player);
 }
 
@@ -346,12 +585,14 @@ async function resolveLanding(player, roll) {
       if (player.cash >= space.price) {
         const buy = await showDecision({
           title: `Buy ${space.name}?`,
-          text: `Price $${space.price} • Base rent $${space.rent || 0}. ${player.name}, purchase this property?`,
+          text: `Price: $${space.price} · Rent: $${space.rent || 0} · ${player.name}'s cash: $${player.cash}`,
         });
         if (buy) {
           player.cash -= space.price;
           player.properties.push(player.pos);
           log(`${player.name} bought ${space.name} for $${space.price}.`);
+          showToast(`${player.name} bought ${space.name}!`, 'success');
+          playSfx('buy');
         } else {
           log(`${player.name} skipped ${space.name}.`);
         }
@@ -366,6 +607,8 @@ async function resolveLanding(player, roll) {
       player.cash -= rent;
       owner.cash += rent;
       log(`${player.name} paid $${rent} rent to ${owner.name} (${space.name}).`);
+      showToast(`-$${rent} rent to ${owner.name}`, 'danger');
+      playSfx('pay');
       bankruptIfNeeded(player);
     } else {
       log(`${player.name} landed on their own ${space.name}.`);
@@ -377,6 +620,7 @@ async function resolveLanding(player, roll) {
     player.cash -= space.amount;
     state.freeParkingPot += space.amount;
     log(`${player.name} paid ${space.name} ($${space.amount}). Added to Free Parking pot.`);
+    playSfx('pay');
     bankruptIfNeeded(player);
     return;
   }
@@ -388,13 +632,15 @@ async function resolveLanding(player, roll) {
 
   if (space.type === 'gotojail') {
     player.pos = 10;
-    log(`🚓 ${player.name} sent to Jail.`);
+    log(`${player.name} sent to Jail.`);
+    showToast(`${player.name} sent to Jail!`, 'danger');
     return;
   }
 
   if (space.name === 'Free Parking' && state.freeParkingPot > 0) {
     player.cash += state.freeParkingPot;
-    log(`🎁 ${player.name} collected Free Parking pot: $${state.freeParkingPot}.`);
+    log(`${player.name} collected Free Parking pot: $${state.freeParkingPot}.`);
+    showToast(`+$${state.freeParkingPot} from Free Parking!`, 'gold');
     state.freeParkingPot = 0;
     return;
   }
@@ -402,40 +648,197 @@ async function resolveLanding(player, roll) {
   if (space.name === 'GO') log(`${player.name} landed on GO.`);
 }
 
+// ─── AUDIO FX ───
 function playRollFx(total) {
   if (!audioCtx) return;
+  const now = audioCtx.currentTime;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = 'triangle';
-  osc.frequency.value = 220 + (total * 28);
+  osc.frequency.setValueAtTime(180 + total * 28, now);
+  osc.frequency.exponentialRampToValueAtTime(120 + total * 14, now + 0.14);
   gain.gain.value = 0.0001;
-  osc.connect(gain).connect(audioCtx.destination);
-  const now = audioCtx.currentTime;
   gain.gain.exponentialRampToValueAtTime(0.025, now + 0.02);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+  osc.connect(gain).connect(audioCtx.destination);
   osc.start(now);
   osc.stop(now + 0.2);
 }
 
+function playSfx(type) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+
+  if (type === 'win') {
+    [523, 659, 784, 1047].forEach((freq, i) => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, now + i * 0.12);
+      g.gain.exponentialRampToValueAtTime(0.03, now + i * 0.12 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 0.4);
+      o.connect(g).connect(audioCtx.destination);
+      o.start(now + i * 0.12);
+      o.stop(now + i * 0.12 + 0.45);
+    });
+    return;
+  }
+
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain).connect(audioCtx.destination);
+
+  if (type === 'buy') {
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(523, now);
+    osc.frequency.exponentialRampToValueAtTime(784, now + 0.1);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.025, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    osc.start(now);
+    osc.stop(now + 0.25);
+  } else if (type === 'pay') {
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.exponentialRampToValueAtTime(200, now + 0.14);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.02, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+    osc.start(now);
+    osc.stop(now + 0.25);
+  }
+}
+
+function toggleMusic() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  state.musicOn = !state.musicOn;
+
+  if (!state.musicOn) {
+    if (ambientNodes) {
+      const now = audioCtx.currentTime;
+      ambientNodes.gain.gain.linearRampToValueAtTime(0.0001, now + 1.5);
+      const nodes = ambientNodes;
+      ambientNodes = null;
+      setTimeout(() => {
+        try { nodes.osc1.stop(); nodes.osc2.stop(); nodes.osc3.stop(); nodes.lfo.stop(); } catch (_) {}
+      }, 1600);
+    }
+    if (jazzTimer) { clearInterval(jazzTimer); jazzTimer = null; }
+    el.musicBtn.textContent = 'Ambient On';
+    return;
+  }
+
+  audioCtx.resume();
+
+  const osc1 = audioCtx.createOscillator();
+  const osc2 = audioCtx.createOscillator();
+  const osc3 = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+
+  osc1.type = 'sine';
+  osc2.type = 'sine';
+  osc3.type = 'sine';
+  osc1.frequency.value = 65.41;
+  osc2.frequency.value = 65.8;
+  osc3.frequency.value = 98.0;
+
+  filter.type = 'lowpass';
+  filter.frequency.value = 320;
+  filter.Q.value = 0.5;
+
+  gain.gain.value = 0;
+  gain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 2);
+
+  const lfo = audioCtx.createOscillator();
+  const lfoGain = audioCtx.createGain();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.06;
+  lfoGain.gain.value = 120;
+  lfo.connect(lfoGain);
+  lfoGain.connect(filter.frequency);
+
+  osc1.connect(filter);
+  osc2.connect(filter);
+  osc3.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  osc1.start();
+  osc2.start();
+  osc3.start();
+  lfo.start();
+
+  ambientNodes = { osc1, osc2, osc3, gain, lfo, filter };
+
+  const noteFreqs = [261.63, 329.63, 392, 523.25, 659.25, 783.99];
+  jazzTimer = setInterval(() => {
+    if (!state.musicOn || !audioCtx) return;
+    const freq = noteFreqs[Math.floor(Math.random() * noteFreqs.length)];
+    const noteOsc = audioCtx.createOscillator();
+    const noteGain = audioCtx.createGain();
+    const noteFilter = audioCtx.createBiquadFilter();
+    noteOsc.type = 'sine';
+    noteOsc.frequency.value = freq;
+    noteFilter.type = 'lowpass';
+    noteFilter.frequency.value = 2000;
+    noteGain.gain.value = 0;
+    const n = audioCtx.currentTime;
+    noteGain.gain.linearRampToValueAtTime(0.018, n + 0.3);
+    noteGain.gain.exponentialRampToValueAtTime(0.0001, n + 3);
+    noteOsc.connect(noteFilter);
+    noteFilter.connect(noteGain);
+    noteGain.connect(audioCtx.destination);
+    noteOsc.start(n);
+    noteOsc.stop(n + 3.2);
+  }, 2500);
+
+  el.musicBtn.textContent = 'Ambient Off';
+}
+
+// ─── DICE ANIMATION (3D) ───
 function animateDice(finalD1, finalD2) {
   return new Promise((resolve) => {
-    const steps = 8;
-    let frame = 0;
-    const timer = setInterval(() => {
-      frame += 1;
-      if (frame >= steps) {
-        clearInterval(timer);
+    const cube1 = el.dieOne;
+    const cube2 = el.dieTwo;
+    if (!cube1 || !cube2) {
+      state.dice = [finalD1, finalD2];
+      renderDice();
+      resolve();
+      return;
+    }
+
+    let startTime;
+    const duration = 900;
+
+    const spins1 = { x: (2 + Math.random() * 2) * 360, y: (2 + Math.random() * 2) * 360 };
+    const spins2 = { x: (2 + Math.random() * 2) * 360, y: (2 + Math.random() * 2) * 360 };
+    const final1 = FACE_ROTATIONS[finalD1];
+    const final2 = FACE_ROTATIONS[finalD2];
+
+    function animate(time) {
+      if (!startTime) startTime = time;
+      const t = Math.min((time - startTime) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 4);
+
+      cube1.style.transform = `rotateX(${ease * (spins1.x + final1.x)}deg) rotateY(${ease * (spins1.y + final1.y)}deg)`;
+      cube2.style.transform = `rotateX(${ease * (spins2.x + final2.x)}deg) rotateY(${ease * (spins2.y + final2.y)}deg)`;
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
         state.dice = [finalD1, finalD2];
         renderDice();
         resolve();
-        return;
       }
-      state.dice = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
-      renderDice();
-    }, 45);
+    }
+
+    requestAnimationFrame(animate);
   });
 }
 
+// ─── TURN MANAGEMENT ───
 async function takeTurn() {
   if (state.gameOver || state.processingTurn || !state.players.length) return;
   const player = state.players[state.current];
@@ -465,7 +868,7 @@ async function takeTurn() {
   }
 
   try {
-    log(`🎲 ${player.name} rolled ${state.lastRoll}.`);
+    log(`${player.name} rolled ${state.lastRoll}.`);
     await resolveLanding(player, roll);
     el.endBtn.disabled = false;
     refresh();
@@ -508,6 +911,7 @@ function startGame() {
     freeParkingPot: 0,
     dice: [1, 1],
   });
+  inspectedIdx = null;
   el.log.innerHTML = '';
   log('Welcome to Monopoly Family Edition.');
   el.setupPanel.classList.add('hidden');
@@ -530,6 +934,7 @@ function restart() {
     freeParkingPot: 0,
     dice: [1, 1],
   });
+  inspectedIdx = null;
   el.setupPanel.classList.remove('hidden');
   el.gameLayout.classList.add('hidden');
   el.log.innerHTML = '';
@@ -540,8 +945,12 @@ function restart() {
   setTurnPill('Setup', '#64748b');
   initNameInputs();
   localStorage.removeItem(SAVE_KEY);
+
+  const overlay = document.querySelector('.win-overlay');
+  if (overlay) overlay.remove();
 }
 
+// ─── SAVE / LOAD ───
 function serializeState() {
   return JSON.stringify({
     players: state.players,
@@ -621,7 +1030,8 @@ function loadSavedGame() {
 function saveNow() {
   if (!state.players.length) return;
   autoSave();
-  log('💾 Game saved.');
+  log('Game saved.');
+  showToast('Game saved successfully', 'success');
 }
 
 function clearLog() {
@@ -629,71 +1039,47 @@ function clearLog() {
   log('Log cleared.');
 }
 
-function toggleMusic() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  state.musicOn = !state.musicOn;
+// ─── SPACE INSPECTOR ───
+function inspectSpace(idx) {
+  inspectedIdx = idx;
+  const space = BOARD[idx];
+  const owner = ownerOf(idx);
 
-  if (!state.musicOn) {
-    if (jazzTimer) clearInterval(jazzTimer);
-    jazzTimer = null;
-    el.musicBtn.textContent = '🎷 Jazz On';
-    return;
+  let html = `<h3 style="${space.color ? `color:${space.color}` : ''}">${space.name}</h3>`;
+  html += '<div class="meta">';
+  html += `Type: ${space.type.charAt(0).toUpperCase() + space.type.slice(1)}<br>`;
+  html += `Position: #${idx}`;
+  if (space.price) html += `<br>Price: $${space.price}`;
+  if (space.rent) html += `<br>Base Rent: $${space.rent}`;
+  if (space.color) {
+    const monopolyOwner = state.players.find((p) => !p.bankrupt && isMonopoly(p, space));
+    if (monopolyOwner) {
+      html += `<br><span style="color:var(--gold)">Monopoly (${monopolyOwner.name}) — Rent: $${space.rent * 2}</span>`;
+    }
+  }
+  if (space.type === 'railroad' && owner) {
+    html += `<br>Current Rent: $${25 * countByType(owner, 'railroad')}`;
+  }
+  html += '</div>';
+
+  if (owner) {
+    html += `<div class="owner"><div class="owner-dot" style="background:${owner.color}"></div>${owner.name}</div>`;
+  } else if (['property', 'railroad', 'utility'].includes(space.type)) {
+    html += '<div class="owner" style="color:var(--text-muted)">Unowned</div>';
   }
 
-  audioCtx.resume();
+  const playersHere = state.players.filter((p) => !p.bankrupt && p.pos === idx);
+  if (playersHere.length > 0) {
+    html += '<div style="margin-top:0.3rem;font-size:0.75rem;color:var(--text-secondary)">';
+    html += `Players here: ${playersHere.map((p) => `<span style="color:${p.color}">${p.name}</span>`).join(', ')}`;
+    html += '</div>';
+  }
 
-  const playNote = (freq, dur = 0.2, gainValue = 0.04, type = 'triangle') => {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.value = freq;
-    gain.gain.value = gainValue;
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + dur);
-  };
-
-  const progression = [
-    [261.63, 329.63, 392.0],
-    [293.66, 369.99, 440.0],
-    [329.63, 415.3, 493.88],
-    [246.94, 311.13, 392.0],
-  ];
-
-  let step = 0;
-  jazzTimer = setInterval(() => {
-    const chord = progression[step % progression.length];
-    playNote(chord[0], 0.3, 0.04, 'sine');
-    playNote(chord[1], 0.24, 0.032, 'triangle');
-    playNote(chord[2], 0.18, 0.03, 'square');
-    if (step % 2 === 0) playNote(chord[0] / 2, 0.14, 0.036, 'sawtooth');
-    step += 1;
-  }, 480);
-
-  el.musicBtn.textContent = '🎷 Jazz Off';
+  el.spaceInspector.innerHTML = html;
+  renderBoard();
 }
 
-function bindSpatialMotion() {
-  const cards = [...document.querySelectorAll('.parallax-card')];
-
-  window.addEventListener('pointermove', (event) => {
-    if (!state.motionOn) return;
-    const x = (event.clientX / window.innerWidth) - 0.5;
-    const y = (event.clientY / window.innerHeight) - 0.5;
-    el.boardPanel.style.transform = `rotateX(${(-y * 5).toFixed(2)}deg) rotateY(${(x * 7).toFixed(2)}deg)`;
-
-    cards.forEach((card, i) => {
-      const depth = 8 + (i * 2);
-      card.style.transform = `translate3d(${(x * depth).toFixed(2)}px, ${(y * depth).toFixed(2)}px, 0)`;
-    });
-  });
-
-  window.addEventListener('pointerleave', () => {
-    el.boardPanel.style.transform = 'none';
-    cards.forEach((card) => { card.style.transform = 'none'; });
-  });
-}
-
+// ─── MOTION & FX ───
 function toggleMotion() {
   state.motionOn = !state.motionOn;
   document.body.classList.toggle('motion-off', !state.motionOn);
@@ -710,6 +1096,27 @@ function toggleFullscreen() {
   } else {
     document.exitFullscreen().catch(() => {});
   }
+}
+
+function bindSpatialMotion() {
+  const cards = [...document.querySelectorAll('.parallax-card')];
+
+  window.addEventListener('pointermove', (event) => {
+    if (!state.motionOn) return;
+    const x = (event.clientX / window.innerWidth) - 0.5;
+    const y = (event.clientY / window.innerHeight) - 0.5;
+    el.boardPanel.style.transform = `rotateX(${(-y * 4).toFixed(2)}deg) rotateY(${(x * 6).toFixed(2)}deg)`;
+
+    cards.forEach((card, i) => {
+      const depth = 6 + (i * 1.5);
+      card.style.transform = `translate3d(${(x * depth).toFixed(2)}px, ${(y * depth).toFixed(2)}px, 0)`;
+    });
+  });
+
+  window.addEventListener('pointerleave', () => {
+    el.boardPanel.style.transform = 'none';
+    cards.forEach((card) => { card.style.transform = 'none'; });
+  });
 }
 
 function startFxScene() {
@@ -731,12 +1138,12 @@ function startFxScene() {
 
   const init = () => {
     points.length = 0;
-    for (let i = 0; i < 52; i += 1) {
+    for (let i = 0; i < 60; i += 1) {
       points.push({
         x: Math.random() * w,
         y: Math.random() * h,
-        vx: (Math.random() - 0.5) * 0.35,
-        vy: (Math.random() - 0.5) * 0.35,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
       });
     }
   };
@@ -745,8 +1152,8 @@ function startFxScene() {
     ctx.clearRect(0, 0, w, h);
 
     points.forEach((p) => {
-      p.x += p.vx + (pointer.x - 0.5) * 0.08;
-      p.y += p.vy + (pointer.y - 0.5) * 0.08;
+      p.x += p.vx + (pointer.x - 0.5) * 0.06;
+      p.y += p.vy + (pointer.y - 0.5) * 0.06;
       if (p.x < -40) p.x = w + 40;
       if (p.x > w + 40) p.x = -40;
       if (p.y < -40) p.y = h + 40;
@@ -760,8 +1167,8 @@ function startFxScene() {
         const dx = a.x - b.x;
         const dy = a.y - b.y;
         const dist = Math.hypot(dx, dy);
-        if (dist < 140) {
-          ctx.strokeStyle = `rgba(148,163,184,${(1 - dist / 140) * 0.2})`;
+        if (dist < 160) {
+          ctx.strokeStyle = `rgba(180,168,140,${(1 - dist / 160) * 0.14})`;
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
@@ -772,9 +1179,9 @@ function startFxScene() {
     }
 
     points.forEach((p) => {
-      ctx.fillStyle = 'rgba(226,232,240,0.52)';
+      ctx.fillStyle = 'rgba(200,188,160,0.38)';
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 1.6, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
       ctx.fill();
     });
 
@@ -791,6 +1198,7 @@ function startFxScene() {
   draw();
 }
 
+// ─── EVENT LISTENERS ───
 el.playerCount.addEventListener('change', initNameInputs);
 el.startBtn.addEventListener('click', startGame);
 el.rollBtn.addEventListener('click', takeTurn);
@@ -816,7 +1224,9 @@ document.addEventListener('fullscreenchange', () => {
   el.fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
 });
 
+// ─── INIT ───
 initNameInputs();
+initDice();
 bindSpatialMotion();
 startFxScene();
 renderHud();
