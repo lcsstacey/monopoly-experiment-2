@@ -2,8 +2,6 @@
    MONOPOLY — Premium Dark Gold Theme
    ═══════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-
 :root {
   --bg: #07070d;
   --bg-card: #0d0d16;
@@ -244,11 +242,10 @@ select option { background: #0d0d16; }
 .panel:hover { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28); }
 .panel h2 {
   margin-top: 0; margin-bottom: 0.5rem;
-  font-size: 0.88rem; font-weight: 700;
+  font-size: 0.72rem; font-weight: 700;
   letter-spacing: 0.03em;
   color: var(--text-secondary);
   text-transform: uppercase;
-  font-size: 0.72rem;
 }
 .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; }
 .muted { color: var(--text-secondary); }
@@ -521,6 +518,19 @@ select option { background: #0d0d16; }
   width: 7px; height: 7px; border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.15);
 }
+.player-badges { display: flex; gap: 0.25rem; margin-top: 0.22rem; flex-wrap: wrap; }
+.player-badge {
+  display: inline-flex; align-items: center;
+  padding: 0.08rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-secondary);
+}
+.player-badge.jail { color: var(--red); border-color: rgba(248, 113, 113, 0.35); }
+.player-badge.gooj { color: var(--gold); border-color: rgba(201, 168, 76, 0.35); }
 
 /* ═══ ACTIVITY LOG ═══ */
 .log {
@@ -689,6 +699,15 @@ dialog p { color: var(--text-secondary); font-size: 0.88rem; line-height: 1.5; }
   }
   .cell { font-size: 0.4rem; padding: 2px; border-radius: 4px; }
   .cell .name { font-size: 0.38rem; }
-  .die { width: 40px; height: 40px; border-radius: 8px; }
+  .die-scene { width: 44px; height: 44px; perspective: 220px; }
+  .die-face { width: 44px; height: 44px; padding: 6px; }
+  .die-f1, .die-f6, .die-f2, .die-f5 { transform-origin: center; }
+  .die-f1 { transform: rotateY(0deg) translateZ(22px); }
+  .die-f6 { transform: rotateY(180deg) translateZ(22px); }
+  .die-f2 { transform: rotateY(90deg) translateZ(22px); }
+  .die-f5 { transform: rotateY(-90deg) translateZ(22px); }
+  .die-f3 { transform: rotateX(90deg) translateZ(22px); }
+  .die-f4 { transform: rotateX(-90deg) translateZ(22px); }
+  .pip { width: 7px; height: 7px; }
   .topbar { padding: 0.5rem 0.7rem; }
 }
