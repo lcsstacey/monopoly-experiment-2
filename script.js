@@ -6,12 +6,12 @@
 const BOARD = [
   { name: 'GO', type: 'corner' },
   { name: 'Mediterranean', type: 'property', price: 60, rent: 8, color: '#8b5a2b' },
-  { name: 'Community', type: 'card' },
+  { name: 'Community', type: 'card', deck: 'community' },
   { name: 'Baltic', type: 'property', price: 60, rent: 12, color: '#8b5a2b' },
   { name: 'Income Tax', type: 'tax', amount: 100 },
   { name: 'Reading RR', type: 'railroad', price: 200, rent: 25 },
   { name: 'Oriental', type: 'property', price: 100, rent: 16, color: '#87ceeb' },
-  { name: 'Chance', type: 'card' },
+  { name: 'Chance', type: 'card', deck: 'chance' },
   { name: 'Vermont', type: 'property', price: 100, rent: 16, color: '#87ceeb' },
   { name: 'Connecticut', type: 'property', price: 120, rent: 20, color: '#87ceeb' },
   { name: 'Jail', type: 'corner' },
@@ -21,12 +21,12 @@ const BOARD = [
   { name: 'Virginia', type: 'property', price: 160, rent: 28, color: '#d946a7' },
   { name: 'Penn RR', type: 'railroad', price: 200, rent: 25 },
   { name: 'St James', type: 'property', price: 180, rent: 32, color: '#f97316' },
-  { name: 'Community', type: 'card' },
+  { name: 'Community', type: 'card', deck: 'community' },
   { name: 'Tennessee', type: 'property', price: 180, rent: 32, color: '#f97316' },
   { name: 'New York', type: 'property', price: 200, rent: 36, color: '#f97316' },
   { name: 'Free Parking', type: 'corner' },
   { name: 'Kentucky', type: 'property', price: 220, rent: 40, color: '#ef4444' },
-  { name: 'Chance', type: 'card' },
+  { name: 'Chance', type: 'card', deck: 'chance' },
   { name: 'Indiana', type: 'property', price: 220, rent: 40, color: '#ef4444' },
   { name: 'Illinois', type: 'property', price: 240, rent: 44, color: '#ef4444' },
   { name: 'B&O RR', type: 'railroad', price: 200, rent: 25 },
@@ -37,28 +37,67 @@ const BOARD = [
   { name: 'Go To Jail', type: 'gotojail' },
   { name: 'Pacific', type: 'property', price: 300, rent: 56, color: '#22c55e' },
   { name: 'North Carolina', type: 'property', price: 300, rent: 56, color: '#22c55e' },
-  { name: 'Community', type: 'card' },
+  { name: 'Community', type: 'card', deck: 'community' },
   { name: 'Pennsylvania', type: 'property', price: 320, rent: 60, color: '#22c55e' },
   { name: 'Short Line', type: 'railroad', price: 200, rent: 25 },
-  { name: 'Chance', type: 'card' },
+  { name: 'Chance', type: 'card', deck: 'chance' },
   { name: 'Park Place', type: 'property', price: 350, rent: 70, color: '#1d4ed8' },
   { name: 'Luxury Tax', type: 'tax', amount: 100 },
   { name: 'Boardwalk', type: 'property', price: 400, rent: 80, color: '#1d4ed8' },
 ];
 
+const JAIL_POS = 10;
+
+// Card schema:
+//   text         — flavor text shown to the player
+//   cash         — flat cash delta (positive collect / negative pay)
+//   move         — absolute target position (collects $200 if forward past GO)
+//   delta        — relative move (no GO bonus, e.g. "go back 3")
+//   moveType     — 'nearestRR' | 'nearestUtility' (auto-finds target)
+//   resolveLanding — after movement, run the normal landing logic (buy/rent)
+//   rentMult     — when resolving landing on owned space, multiply rent
+//   utilityRoll  — when on owned utility, charge dice × this multiplier instead
+//   toJail       — send straight to Jail (no $200, no movement)
+//   getOut       — grant a Get Out of Jail Free card
+//   payEachPlayer    — pay this much to every other live player
+//   collectEachPlayer — collect this much from every other live player
+//   repairsPerProp   — pay this for each property owned
 const CHANCE = [
-  { text: 'Advance to GO. Collect $200.', fn: (p) => { p.pos = 0; p.cash += 200; } },
-  { text: 'Street repairs. Pay $120.', fn: (p) => { p.cash -= 120; } },
-  { text: 'Dividend payout. Collect $100.', fn: (p) => { p.cash += 100; } },
-  { text: 'Move back 3 spaces.', fn: (p) => { p.pos = (p.pos + 37) % 40; } },
-  { text: 'Birthday gifts. Collect $60.', fn: (p) => { p.cash += 60; } },
-  { text: 'Car maintenance. Pay $50.', fn: (p) => { p.cash -= 50; } },
-  { text: 'Bank error in your favor. Collect $150.', fn: (p) => { p.cash += 150; } },
-  { text: 'Speeding fine. Pay $25.', fn: (p) => { p.cash -= 25; } },
-  { text: 'Advance to Illinois.', fn: (p) => { p.pos = 25; } },
-  { text: 'Holiday fund matures. Collect $80.', fn: (p) => { p.cash += 80; } },
-  { text: 'Go directly to Jail.', fn: (p) => { p.pos = 10; } },
-  { text: 'Pay school fees of $50.', fn: (p) => { p.cash -= 50; } },
+  { text: 'Advance to GO. Collect $200.', move: 0 },
+  { text: 'Advance to Boardwalk.', move: 39, resolveLanding: true },
+  { text: 'Advance to Illinois Avenue. Collect $200 if you pass GO.', move: 25, resolveLanding: true },
+  { text: 'Advance to St Charles Place. Collect $200 if you pass GO.', move: 11, resolveLanding: true },
+  { text: 'Advance to the nearest Railroad. Pay double rent if owned.', moveType: 'nearestRR', resolveLanding: true, rentMult: 2 },
+  { text: 'Advance to the nearest Utility. Pay 10× the dice if owned.', moveType: 'nearestUtility', resolveLanding: true, utilityRoll: 10 },
+  { text: 'Bank pays you a dividend of $50.', cash: 50 },
+  { text: 'Get Out of Jail Free. Keep this card.', getOut: true },
+  { text: 'Go back 3 spaces.', delta: -3, resolveLanding: true },
+  { text: 'Go directly to Jail. Do not pass GO.', toJail: true },
+  { text: 'Make general repairs on your properties: pay $25 each.', repairsPerProp: 25 },
+  { text: 'Speeding fine. Pay $15.', cash: -15 },
+  { text: 'Take a trip to Reading Railroad.', move: 5, resolveLanding: true },
+  { text: 'Pay each player $50 — chairman fee.', payEachPlayer: 50 },
+  { text: 'Your building loan matures. Collect $150.', cash: 150 },
+  { text: 'Crossword competition. Collect $100.', cash: 100 },
+];
+
+const COMMUNITY = [
+  { text: 'Advance to GO. Collect $200.', move: 0 },
+  { text: 'Bank error in your favor. Collect $200.', cash: 200 },
+  { text: "Doctor's fee. Pay $50.", cash: -50 },
+  { text: 'From sale of stock you collect $50.', cash: 50 },
+  { text: 'Get Out of Jail Free. Keep this card.', getOut: true },
+  { text: 'Go directly to Jail. Do not pass GO.', toJail: true },
+  { text: 'Grand Opera Night — collect $50 from every player.', collectEachPlayer: 50 },
+  { text: 'Holiday fund matures. Collect $100.', cash: 100 },
+  { text: 'Income tax refund. Collect $20.', cash: 20 },
+  { text: "It's your birthday — each player gives you $10.", collectEachPlayer: 10 },
+  { text: 'Life insurance matures. Collect $100.', cash: 100 },
+  { text: 'Hospital fees. Pay $100.', cash: -100 },
+  { text: 'School fees. Pay $50.', cash: -50 },
+  { text: 'Receive consultancy fee of $25.', cash: 25 },
+  { text: 'You have won second prize in a beauty contest. Collect $10.', cash: 10 },
+  { text: 'You inherit $100.', cash: 100 },
 ];
 
 const START_CASH = 1500;
@@ -97,6 +136,7 @@ const state = {
   musicOn: false,
   motionOn: true,
   dice: [1, 1],
+  doublesThisTurn: 0,
 };
 
 let inspectedIdx = null;
@@ -504,6 +544,9 @@ function renderPlayers() {
     const colorDots = ownedColors.map((c) => `<span class="prop-dot" style="background:${c}"></span>`).join('');
     const safeName = escapeHtml(p.name);
     const safeColor = escapeHtml(p.color);
+    const badges = [];
+    if (p.jailTurns > 0) badges.push(`<span class="player-badge jail">Jail ${p.jailTurns}/3</span>`);
+    if (p.getOutCards > 0) badges.push(`<span class="player-badge gooj">Get Out ×${p.getOutCards}</span>`);
 
     const card = document.createElement('div');
     card.className = `player-card${isActive ? ' active' : ''}${p.bankrupt ? ' bankrupt' : ''}`;
@@ -516,6 +559,7 @@ function renderPlayers() {
             <span><span class="stat-label">Cash</span> $${p.cash}</span>
             <span><span class="stat-label">Net</span> $${nw}</span>
           </div>
+          ${badges.length ? `<div class="player-badges">${badges.join('')}</div>` : ''}
           ${colorDots ? `<div class="prop-dots">${colorDots}</div>` : ''}
         </div>
         <div class="player-rank" style="${isActive ? 'color:var(--gold)' : ''}">#${rank + 1}</div>
@@ -536,7 +580,12 @@ function renderTurnInfo() {
 
   const p = state.players[state.current];
   setTurnPill(`${p.name}'s turn`, p.color);
-  el.turnInfo.innerHTML = `<strong style="color:${escapeHtml(p.color)}">${escapeHtml(p.name)}</strong><br>Position: ${escapeHtml(BOARD[p.pos].name)}<br>${state.lastRoll ? `Last roll: ${escapeHtml(state.lastRoll)}` : 'Roll the dice.'}`;
+  const status = [];
+  status.push(`Position: ${escapeHtml(BOARD[p.pos].name)}`);
+  if (p.jailTurns > 0) status.push(`<span style="color:var(--red)">In Jail (turn ${p.jailTurns}/3)</span>`);
+  if (state.doublesThisTurn > 0 && p.jailTurns === 0) status.push(`<span style="color:var(--gold)">Doubles ×${state.doublesThisTurn} — roll again</span>`);
+  status.push(state.lastRoll ? `Last roll: ${escapeHtml(state.lastRoll)}` : 'Roll the dice.');
+  el.turnInfo.innerHTML = `<strong style="color:${escapeHtml(p.color)}">${escapeHtml(p.name)}</strong><br>${status.join('<br>')}`;
 }
 
 function renderDice() {
@@ -572,65 +621,190 @@ function nextActivePlayer() {
   return idx;
 }
 
-function showDecision({ title, text, yesLabel, noLabel }) {
-  yesLabel = yesLabel || 'Buy';
-  noLabel = noLabel || 'Skip';
+function showChoice({ title, text, choices }) {
   return new Promise((resolve) => {
     if (el.modal.open) el.modal.close();
     el.modalTitle.textContent = title;
     el.modalText.textContent = text;
-    el.modalYes.textContent = yesLabel;
-    el.modalNo.textContent = noLabel;
 
-    const cleanup = () => {
-      el.modalYes.onclick = null;
-      el.modalNo.onclick = null;
-      el.modal.onclose = null;
+    const actions = el.modal.querySelector('.modal-actions');
+    actions.innerHTML = '';
+
+    let resolved = false;
+    const closeWith = (value) => {
+      if (resolved) return;
+      resolved = true;
       el.modal.oncancel = null;
+      el.modal.onclose = null;
+      if (el.modal.open) el.modal.close();
+      resolve(value);
     };
 
-    const closeWith = (result) => {
-      cleanup();
-      if (el.modal.open) el.modal.close();
-      resolve(result);
-    };
-    el.modalYes.onclick = () => closeWith(true);
-    el.modalNo.onclick = () => closeWith(false);
-    el.modal.oncancel = () => closeWith(false);
-    el.modal.onclose = () => closeWith(false);
+    choices.forEach((c) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `btn ${c.primary ? 'primary' : 'subtle'}`;
+      btn.textContent = c.label;
+      btn.addEventListener('click', () => closeWith(c.value));
+      actions.appendChild(btn);
+    });
+
+    const cancelChoice = choices.find((c) => c.cancel);
+    const cancelValue = cancelChoice ? cancelChoice.value : null;
+    el.modal.oncancel = () => closeWith(cancelValue);
+    el.modal.onclose = () => closeWith(cancelValue);
 
     el.modal.showModal();
   });
 }
 
+function showDecision({ title, text, yesLabel, noLabel }) {
+  return showChoice({
+    title,
+    text,
+    choices: [
+      { label: noLabel || 'Skip', value: false, cancel: true },
+      { label: yesLabel || 'Buy', value: true, primary: true },
+    ],
+  });
+}
+
 function bankruptIfNeeded(player) {
   if (player.cash >= 0) return;
-  player.bankrupt = true;
-  player.cash = 0;
-  player.properties = [];
-  log(`${player.name} is bankrupt and removed from the game.`);
-  showToast(`${player.name} is bankrupt!`, 'danger');
-}
 
-function handleCard(player) {
-  const card = CHANCE[Math.floor(Math.random() * CHANCE.length)];
-  const cashBefore = player.cash;
-  card.fn(player);
-  log(`${player.name}: ${card.text}`);
-  const delta = player.cash - cashBefore;
-  if (delta > 0) {
-    showToast(`${player.name}: +$${delta}`, 'success');
-    playSfx('buy');
-  } else if (delta < 0) {
-    showToast(`${player.name}: -$${Math.abs(delta)}`, 'danger');
-    playSfx('pay');
-  } else {
-    showToast(card.text, 'info');
+  // Liquidate properties at half value (bank buyback) until debt is covered.
+  const liquidated = [];
+  while (player.cash < 0 && player.properties.length > 0) {
+    const idx = player.properties.shift();
+    const value = Math.floor((BOARD[idx].price || 0) / 2);
+    player.cash += value;
+    liquidated.push({ name: BOARD[idx].name, value });
   }
-  bankruptIfNeeded(player);
+  if (liquidated.length) {
+    const total = liquidated.reduce((s, l) => s + l.value, 0);
+    log(`${player.name} sold ${liquidated.length} property to the bank for $${total} to cover debts.`);
+    showToast(`${player.name} sold ${liquidated.length} for $${total}`, 'info');
+  }
+
+  if (player.cash < 0) {
+    player.bankrupt = true;
+    player.cash = 0;
+    player.properties = [];
+    player.getOutCards = 0;
+    log(`${player.name} is bankrupt and out of the game.`);
+    showToast(`${player.name} is bankrupt!`, 'danger');
+  }
 }
 
-async function resolveLanding(player, roll) {
+function nearestPositionOfType(fromPos, type) {
+  for (let step = 1; step <= 40; step += 1) {
+    const idx = (fromPos + step) % 40;
+    if (BOARD[idx].type === type) return idx;
+  }
+  return fromPos;
+}
+
+function moveTo(player, target, { collectGo = true, log: logMove = true } = {}) {
+  const oldPos = player.pos;
+  player.pos = ((target % 40) + 40) % 40;
+  // Pass GO if absolute target wrapped around (target >= 40) or new pos is behind old
+  // (a forward move that ended at a smaller index means we crossed GO).
+  if (collectGo && (target >= 40 || player.pos < oldPos)) {
+    player.cash += 200;
+    log(`${player.name} passed GO and collected $200.`);
+  }
+  if (logMove) log(`${player.name} advanced to ${BOARD[player.pos].name}.`);
+}
+
+function sendToJail(player) {
+  player.pos = JAIL_POS;
+  player.jailTurns = 1;
+  log(`${player.name} was sent to Jail.`);
+  showToast(`${player.name} sent to Jail!`, 'danger');
+}
+
+async function applyCard(player, card, lastRoll) {
+  log(`${player.name}: ${card.text}`);
+
+  if (typeof card.cash === 'number') {
+    player.cash += card.cash;
+    if (card.cash > 0) showToast(`${player.name}: +$${card.cash}`, 'success');
+    else showToast(`${player.name}: -$${Math.abs(card.cash)}`, 'danger');
+    playSfx(card.cash > 0 ? 'buy' : 'pay');
+  }
+
+  if (card.repairsPerProp) {
+    const total = player.properties.length * card.repairsPerProp;
+    if (total > 0) {
+      player.cash -= total;
+      log(`${player.name} paid $${total} for repairs (${player.properties.length} properties).`);
+      showToast(`-$${total} repairs`, 'danger');
+      playSfx('pay');
+    }
+  }
+
+  if (card.payEachPlayer) {
+    state.players.filter((p) => !p.bankrupt && p.id !== player.id).forEach((other) => {
+      const amt = card.payEachPlayer;
+      player.cash -= amt;
+      other.cash += amt;
+      log(`${player.name} paid $${amt} to ${other.name}.`);
+    });
+  }
+
+  if (card.collectEachPlayer) {
+    state.players.filter((p) => !p.bankrupt && p.id !== player.id).forEach((other) => {
+      const amt = card.collectEachPlayer;
+      other.cash -= amt;
+      player.cash += amt;
+      log(`${player.name} collected $${amt} from ${other.name}.`);
+      bankruptIfNeeded(other);
+    });
+  }
+
+  if (card.getOut) {
+    player.getOutCards = (player.getOutCards || 0) + 1;
+    showToast('Get Out of Jail Free!', 'gold');
+  }
+
+  if (card.toJail) {
+    sendToJail(player);
+    bankruptIfNeeded(player);
+    return;
+  }
+
+  let movedTo = null;
+  if (typeof card.move === 'number') {
+    movedTo = card.move;
+    moveTo(player, card.move);
+  } else if (typeof card.delta === 'number') {
+    movedTo = ((player.pos + card.delta) % 40 + 40) % 40;
+    moveTo(player, movedTo, { collectGo: false });
+  } else if (card.moveType === 'nearestRR') {
+    movedTo = nearestPositionOfType(player.pos, 'railroad');
+    moveTo(player, movedTo);
+  } else if (card.moveType === 'nearestUtility') {
+    movedTo = nearestPositionOfType(player.pos, 'utility');
+    moveTo(player, movedTo);
+  }
+
+  bankruptIfNeeded(player);
+  if (player.bankrupt) return;
+
+  if (movedTo != null && card.resolveLanding) {
+    await resolveLanding(player, lastRoll, {
+      rentMult: card.rentMult,
+      utilityRoll: card.utilityRoll,
+    });
+  }
+}
+
+function drawCard(deck) {
+  const cards = deck === 'community' ? COMMUNITY : CHANCE;
+  return cards[Math.floor(Math.random() * cards.length)];
+}
+
+async function resolveLanding(player, roll, opts = {}) {
   const space = BOARD[player.pos];
   const owner = ownerOf(player.pos);
 
@@ -657,7 +831,16 @@ async function resolveLanding(player, roll) {
     }
 
     if (owner.id !== player.id) {
-      const rent = rentFor(space, owner, roll);
+      let rent;
+      if (opts.utilityRoll && space.type === 'utility') {
+        const r1 = 1 + Math.floor(Math.random() * 6);
+        const r2 = 1 + Math.floor(Math.random() * 6);
+        rent = (r1 + r2) * opts.utilityRoll;
+        log(`${player.name} rolled ${r1}+${r2} for utility rent (×${opts.utilityRoll}).`);
+      } else {
+        rent = rentFor(space, owner, roll);
+        if (opts.rentMult) rent *= opts.rentMult;
+      }
       player.cash -= rent;
       owner.cash += rent;
       log(`${player.name} paid $${rent} rent to ${owner.name} (${space.name}).`);
@@ -680,14 +863,13 @@ async function resolveLanding(player, roll) {
   }
 
   if (space.type === 'card') {
-    handleCard(player);
+    const card = drawCard(space.deck);
+    await applyCard(player, card, roll);
     return;
   }
 
   if (space.type === 'gotojail') {
-    player.pos = 10;
-    log(`${player.name} sent to Jail.`);
-    showToast(`${player.name} sent to Jail!`, 'danger');
+    sendToJail(player);
     return;
   }
 
@@ -893,10 +1075,36 @@ function animateDice(finalD1, finalD2) {
 }
 
 // ─── TURN MANAGEMENT ───
+async function rollAndAnimate() {
+  const d1 = 1 + Math.floor(Math.random() * 6);
+  const d2 = 1 + Math.floor(Math.random() * 6);
+  await animateDice(d1, d2);
+  playRollFx(d1 + d2);
+  state.dice = [d1, d2];
+  state.lastRoll = `${d1} + ${d2} = ${d1 + d2}`;
+  return { d1, d2, roll: d1 + d2, doubles: d1 === d2 };
+}
+
+async function chooseJailAction(player) {
+  const choices = [];
+  if (player.cash >= 50) {
+    choices.push({ label: 'Pay $50 bail', value: 'pay' });
+  }
+  if (player.getOutCards > 0) {
+    choices.push({ label: `Use Get Out card (${player.getOutCards})`, value: 'card' });
+  }
+  choices.push({ label: 'Roll for doubles', value: 'roll', primary: true });
+  return showChoice({
+    title: `${player.name} is in Jail`,
+    text: `Turn ${player.jailTurns} of 3. Doubles to escape, or pay $50 bail. Failing the 3rd attempt forces $50.`,
+    choices,
+  });
+}
+
 async function takeTurn() {
   if (state.gameOver || state.processingTurn || !state.players.length) return;
   const player = state.players[state.current];
-  if (player.bankrupt) {
+  if (!player || player.bankrupt) {
     state.current = nextActivePlayer();
     refresh();
     return;
@@ -904,37 +1112,109 @@ async function takeTurn() {
 
   state.processingTurn = true;
   el.rollBtn.disabled = true;
-
-  const d1 = 1 + Math.floor(Math.random() * 6);
-  const d2 = 1 + Math.floor(Math.random() * 6);
-  const roll = d1 + d2;
-  await animateDice(d1, d2);
-  playRollFx(roll);
-  state.dice = [d1, d2];
-  state.lastRoll = `${d1} + ${d2} = ${roll}`;
-  state.rolled = true;
-
-  const oldPos = player.pos;
-  player.pos = (oldPos + roll) % 40;
-  if (oldPos + roll >= 40) {
-    player.cash += 200;
-    log(`${player.name} passed GO and collected $200.`);
-  }
+  el.endBtn.disabled = true;
 
   try {
-    log(`${player.name} rolled ${state.lastRoll}.`);
-    await resolveLanding(player, roll);
-    el.endBtn.disabled = false;
+    let endsTurn = true;
+    let movedAndResolved = false;
+
+    if (player.jailTurns > 0) {
+      const action = await chooseJailAction(player);
+      if (action === 'pay') {
+        player.cash -= 50;
+        state.freeParkingPot += 50;
+        player.jailTurns = 0;
+        log(`${player.name} paid $50 bail.`);
+        playSfx('pay');
+      } else if (action === 'card') {
+        player.getOutCards -= 1;
+        player.jailTurns = 0;
+        log(`${player.name} used a Get Out of Jail Free card.`);
+      } else {
+        // roll for doubles
+        const r = await rollAndAnimate();
+        state.rolled = true;
+        log(`${player.name} (jail attempt ${player.jailTurns}/3) rolled ${state.lastRoll}.`);
+        if (r.doubles) {
+          player.jailTurns = 0;
+          log(`${player.name} rolled doubles and walked free!`);
+          showToast(`${player.name} broke out!`, 'success');
+          moveTo(player, player.pos + r.roll, { log: false });
+          await resolveLanding(player, r.roll);
+          // doubles out of jail does NOT grant another roll
+          movedAndResolved = true;
+        } else if (player.jailTurns >= 3) {
+          // forced bail on the 3rd failed attempt
+          player.cash -= 50;
+          state.freeParkingPot += 50;
+          player.jailTurns = 0;
+          log(`${player.name} served their time and paid $50.`);
+          playSfx('pay');
+          bankruptIfNeeded(player);
+          if (!player.bankrupt) {
+            moveTo(player, player.pos + r.roll, { log: false });
+            await resolveLanding(player, r.roll);
+          }
+          movedAndResolved = true;
+        } else {
+          player.jailTurns += 1;
+          showToast(`${player.name} stays in Jail`, 'info');
+          // turn ends, didn't escape
+          state.rolled = true;
+          refresh();
+          autoSave();
+          endTurn();
+          return;
+        }
+      }
+    }
+
+    if (!movedAndResolved) {
+      const r = await rollAndAnimate();
+      state.rolled = true;
+      if (r.doubles) state.doublesThisTurn += 1;
+      log(`${player.name} rolled ${state.lastRoll}${r.doubles ? ' (doubles!)' : ''}.`);
+
+      if (r.doubles && state.doublesThisTurn === 3) {
+        log(`${player.name} rolled three doubles in a row — straight to Jail!`);
+        showToast('Three doubles → Jail!', 'danger');
+        sendToJail(player);
+        state.doublesThisTurn = 0;
+        refresh();
+        autoSave();
+        endTurn();
+        return;
+      }
+
+      moveTo(player, player.pos + r.roll, { log: false });
+      await resolveLanding(player, r.roll);
+
+      // Doubles → another roll (unless bankrupted, sent to jail, or game over)
+      if (r.doubles && !state.gameOver && !player.bankrupt && player.jailTurns === 0) {
+        endsTurn = false;
+      }
+    }
+
     refresh();
     autoSave();
+
+    if (endsTurn) {
+      el.rollBtn.disabled = true;
+      el.endBtn.disabled = state.gameOver;
+    } else {
+      // doubles re-roll
+      el.rollBtn.disabled = state.gameOver;
+      el.endBtn.disabled = true;
+    }
   } finally {
     state.processingTurn = false;
   }
 }
 
 function endTurn() {
-  if (!state.rolled || state.gameOver) return;
+  if (state.gameOver) return;
   state.rolled = false;
+  state.doublesThisTurn = 0;
   state.current = nextActivePlayer();
   state.turnNumber += 1;
   el.rollBtn.disabled = false;
@@ -953,6 +1233,8 @@ function startGame() {
     pos: 0,
     properties: [],
     bankrupt: false,
+    jailTurns: 0,
+    getOutCards: 0,
   }));
 
   Object.assign(state, {
@@ -964,6 +1246,7 @@ function startGame() {
     lastRoll: null,
     freeParkingPot: 0,
     dice: [1, 1],
+    doublesThisTurn: 0,
   });
   inspectedIdx = null;
   el.log.innerHTML = '';
@@ -987,6 +1270,7 @@ function restart() {
     lastRoll: null,
     freeParkingPot: 0,
     dice: [1, 1],
+    doublesThisTurn: 0,
   });
   inspectedIdx = null;
   el.setupPanel.classList.remove('hidden');
@@ -1015,6 +1299,7 @@ function serializeState() {
     lastRoll: state.lastRoll,
     freeParkingPot: state.freeParkingPot,
     dice: state.dice,
+    doublesThisTurn: state.doublesThisTurn,
   });
 }
 
@@ -1041,6 +1326,8 @@ function loadSavedGame() {
           ? [...new Set(p.properties.filter((space) => Number.isInteger(space) && space >= 0 && space < BOARD.length))]
           : [],
         bankrupt: Boolean(p.bankrupt),
+        jailTurns: Number.isInteger(p.jailTurns) ? Math.min(Math.max(p.jailTurns, 0), 3) : 0,
+        getOutCards: Number.isInteger(p.getOutCards) ? Math.max(p.getOutCards, 0) : 0,
       }));
     if (state.players.length < 2) return false;
     state.current = Math.min(Math.max(Number(parsed.current) || 0, 0), state.players.length - 1);
@@ -1050,6 +1337,7 @@ function loadSavedGame() {
     state.processingTurn = false;
     state.lastRoll = parsed.lastRoll || null;
     state.freeParkingPot = Number(parsed.freeParkingPot) || 0;
+    state.doublesThisTurn = Math.min(Math.max(Number(parsed.doublesThisTurn) || 0, 0), 2);
     const parsedDice = Array.isArray(parsed.dice) ? parsed.dice : [1, 1];
     const safeD1 = Number.isFinite(parsedDice[0]) ? Math.min(Math.max(Math.floor(parsedDice[0]), 1), 6) : 1;
     const safeD2 = Number.isFinite(parsedDice[1]) ? Math.min(Math.max(Math.floor(parsedDice[1]), 1), 6) : 1;

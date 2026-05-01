@@ -518,6 +518,19 @@ select option { background: #0d0d16; }
   width: 7px; height: 7px; border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.15);
 }
+.player-badges { display: flex; gap: 0.25rem; margin-top: 0.22rem; flex-wrap: wrap; }
+.player-badge {
+  display: inline-flex; align-items: center;
+  padding: 0.08rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-secondary);
+}
+.player-badge.jail { color: var(--red); border-color: rgba(248, 113, 113, 0.35); }
+.player-badge.gooj { color: var(--gold); border-color: rgba(201, 168, 76, 0.35); }
 
 /* ═══ ACTIVITY LOG ═══ */
 .log {
