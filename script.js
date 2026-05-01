@@ -101,6 +101,12 @@ const state = {
 
 let inspectedIdx = null;
 
+// ─── HELPERS ───
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
+}
+
 // ─── DOM REFS ───
 const el = {
   board: document.getElementById('board'),
@@ -147,6 +153,21 @@ const el = {
 let audioCtx;
 let jazzTimer;
 let ambientNodes = null;
+
+function ensureAudio() {
+  if (audioCtx) {
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return audioCtx;
+  }
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return null;
+  try {
+    audioCtx = new Ctor();
+  } catch (_) {
+    audioCtx = null;
+  }
+  return audioCtx;
+}
 
 // ─── 3D DICE BUILDER ───
 function createDieCube(id) {
@@ -249,7 +270,13 @@ function showToast(message, type) {
   const colors = { success: '#34d399', danger: '#f87171', info: '#60a5fa', gold: '#c9a84c' };
   const toast = document.createElement('div');
   toast.className = 'toast';
-  toast.innerHTML = `<div class="toast-accent" style="background:${colors[type] || colors.info}"></div><span>${message}</span>`;
+  const accent = document.createElement('div');
+  accent.className = 'toast-accent';
+  accent.style.background = colors[type] || colors.info;
+  const span = document.createElement('span');
+  span.textContent = message;
+  toast.appendChild(accent);
+  toast.appendChild(span);
   el.toastContainer.appendChild(toast);
   setTimeout(() => {
     toast.classList.add('exit');
@@ -258,6 +285,7 @@ function showToast(message, type) {
 }
 
 // ─── CONFETTI ───
+let confettiRaf = null;
 function launchConfetti() {
   const canvas = el.confettiCanvas;
   const ctx = canvas.getContext('2d');
@@ -267,6 +295,7 @@ function launchConfetti() {
   canvas.width = Math.floor(w * dpr);
   canvas.height = Math.floor(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (confettiRaf) cancelAnimationFrame(confettiRaf);
 
   const pieces = [];
   const palette = ['#c9a84c', '#e0c56c', '#3b82f6', '#ef4444', '#22c55e', '#a78bfa', '#fbbf24', '#fb7185'];
@@ -312,13 +341,14 @@ function launchConfetti() {
     });
 
     if (alive > 0 && frame < maxFrames + 120) {
-      requestAnimationFrame(draw);
+      confettiRaf = requestAnimationFrame(draw);
     } else {
       ctx.clearRect(0, 0, w, h);
+      confettiRaf = null;
     }
   }
 
-  requestAnimationFrame(draw);
+  confettiRaf = requestAnimationFrame(draw);
 }
 
 // ─── WIN OVERLAY ───
@@ -331,7 +361,7 @@ function showWinOverlay(winner) {
   overlay.innerHTML = `
     <div class="win-card">
       <div class="win-trophy">&#127942;</div>
-      <div class="win-title">${winner.name} Wins!</div>
+      <div class="win-title">${escapeHtml(winner.name)} Wins!</div>
       <div class="win-subtitle">Net Worth: $${netWorth(winner)}</div>
       <button class="btn primary" style="width:100%">Continue</button>
     </div>
@@ -356,7 +386,13 @@ function log(message) {
     dotColor = 'var(--gold)';
   }
 
-  entry.innerHTML = `<div class="log-dot" style="background:${dotColor}"></div><span>${message}</span>`;
+  const dot = document.createElement('div');
+  dot.className = 'log-dot';
+  dot.style.background = dotColor;
+  const span = document.createElement('span');
+  span.textContent = message;
+  entry.appendChild(dot);
+  entry.appendChild(span);
   el.log.prepend(entry);
 }
 
@@ -455,24 +491,27 @@ function renderPlayers() {
 
   const sorted = [...state.players].sort((a, b) => netWorth(b) - netWorth(a));
   const maxNW = Math.max(...sorted.map((p) => netWorth(p)), 1);
+  const activeId = state.players[state.current] ? state.players[state.current].id : -1;
 
   el.playersPanel.innerHTML = '';
   sorted.forEach((p, rank) => {
     const nw = netWorth(p);
     const pct = ((nw / maxNW) * 100).toFixed(1);
-    const initial = p.name.charAt(0).toUpperCase();
-    const isActive = p.id === state.current && !state.gameOver;
+    const initial = escapeHtml(p.name.charAt(0).toUpperCase() || '?');
+    const isActive = p.id === activeId && !state.gameOver;
 
     const ownedColors = [...new Set(p.properties.map((idx) => BOARD[idx].color).filter(Boolean))];
     const colorDots = ownedColors.map((c) => `<span class="prop-dot" style="background:${c}"></span>`).join('');
+    const safeName = escapeHtml(p.name);
+    const safeColor = escapeHtml(p.color);
 
     const card = document.createElement('div');
     card.className = `player-card${isActive ? ' active' : ''}${p.bankrupt ? ' bankrupt' : ''}`;
     card.innerHTML = `
       <div class="player-header">
-        <div class="player-avatar" style="background:${p.color}">${initial}</div>
+        <div class="player-avatar" style="background:${safeColor}">${initial}</div>
         <div class="player-info">
-          <div class="player-name">${p.name}${p.bankrupt ? ' (Out)' : ''}</div>
+          <div class="player-name">${safeName}${p.bankrupt ? ' (Out)' : ''}</div>
           <div class="player-stats">
             <span><span class="stat-label">Cash</span> $${p.cash}</span>
             <span><span class="stat-label">Net</span> $${nw}</span>
@@ -481,7 +520,7 @@ function renderPlayers() {
         </div>
         <div class="player-rank" style="${isActive ? 'color:var(--gold)' : ''}">#${rank + 1}</div>
       </div>
-      ${!p.bankrupt ? `<div class="nw-bar"><div class="nw-fill" style="--nw-pct:${pct}%;${isActive ? `background:linear-gradient(90deg,${p.color}88,${p.color})` : ''}"></div></div>` : ''}
+      ${!p.bankrupt ? `<div class="nw-bar"><div class="nw-fill" style="--nw-pct:${pct}%;${isActive ? `background:linear-gradient(90deg,${safeColor}88,${safeColor})` : ''}"></div></div>` : ''}
     `;
     el.playersPanel.appendChild(card);
   });
@@ -497,7 +536,7 @@ function renderTurnInfo() {
 
   const p = state.players[state.current];
   setTurnPill(`${p.name}'s turn`, p.color);
-  el.turnInfo.innerHTML = `<strong style="color:${p.color}">${p.name}</strong><br>Position: ${BOARD[p.pos].name}<br>${state.lastRoll ? `Last roll: ${state.lastRoll}` : 'Roll the dice.'}`;
+  el.turnInfo.innerHTML = `<strong style="color:${escapeHtml(p.color)}">${escapeHtml(p.name)}</strong><br>Position: ${escapeHtml(BOARD[p.pos].name)}<br>${state.lastRoll ? `Last roll: ${escapeHtml(state.lastRoll)}` : 'Roll the dice.'}`;
 }
 
 function renderDice() {
@@ -520,6 +559,7 @@ function refresh() {
   renderTurnInfo();
   renderDice();
   renderHud();
+  refreshInspector();
 }
 
 // ─── GAME LOGIC ───
@@ -574,8 +614,19 @@ function bankruptIfNeeded(player) {
 
 function handleCard(player) {
   const card = CHANCE[Math.floor(Math.random() * CHANCE.length)];
+  const cashBefore = player.cash;
   card.fn(player);
   log(`${player.name}: ${card.text}`);
+  const delta = player.cash - cashBefore;
+  if (delta > 0) {
+    showToast(`${player.name}: +$${delta}`, 'success');
+    playSfx('buy');
+  } else if (delta < 0) {
+    showToast(`${player.name}: -$${Math.abs(delta)}`, 'danger');
+    playSfx('pay');
+  } else {
+    showToast(card.text, 'info');
+  }
   bankruptIfNeeded(player);
 }
 
@@ -714,7 +765,7 @@ function playSfx(type) {
 }
 
 function toggleMusic() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!ensureAudio()) return;
   state.musicOn = !state.musicOn;
 
   if (!state.musicOn) {
@@ -1011,13 +1062,6 @@ function loadSavedGame() {
       state.current = nextActivePlayer();
     }
 
-    if (state.players.every((p) => p.bankrupt)) {
-      state.players[0].bankrupt = false;
-    }
-    if (state.players[state.current].bankrupt) {
-      state.current = nextActivePlayer();
-    }
-
     el.setupPanel.classList.add('hidden');
     el.gameLayout.classList.remove('hidden');
     el.rollBtn.disabled = state.rolled;
@@ -1043,8 +1087,9 @@ function clearLog() {
 }
 
 // ─── SPACE INSPECTOR ───
-function inspectSpace(idx) {
-  inspectedIdx = idx;
+function renderInspector() {
+  if (inspectedIdx == null) return;
+  const idx = inspectedIdx;
   const space = BOARD[idx];
   const owner = ownerOf(idx);
 
@@ -1057,7 +1102,7 @@ function inspectSpace(idx) {
   if (space.color) {
     const monopolyOwner = state.players.find((p) => !p.bankrupt && isMonopoly(p, space));
     if (monopolyOwner) {
-      html += `<br><span style="color:var(--gold)">Monopoly (${monopolyOwner.name}) — Rent: $${space.rent * 2}</span>`;
+      html += `<br><span style="color:var(--gold)">Monopoly (${escapeHtml(monopolyOwner.name)}) — Rent: $${space.rent * 2}</span>`;
     }
   }
   if (space.type === 'railroad' && owner) {
@@ -1066,7 +1111,7 @@ function inspectSpace(idx) {
   html += '</div>';
 
   if (owner) {
-    html += `<div class="owner"><div class="owner-dot" style="background:${owner.color}"></div>${owner.name}</div>`;
+    html += `<div class="owner"><div class="owner-dot" style="background:${escapeHtml(owner.color)}"></div>${escapeHtml(owner.name)}</div>`;
   } else if (['property', 'railroad', 'utility'].includes(space.type)) {
     html += '<div class="owner" style="color:var(--text-muted)">Unowned</div>';
   }
@@ -1074,12 +1119,21 @@ function inspectSpace(idx) {
   const playersHere = state.players.filter((p) => !p.bankrupt && p.pos === idx);
   if (playersHere.length > 0) {
     html += '<div style="margin-top:0.3rem;font-size:0.75rem;color:var(--text-secondary)">';
-    html += `Players here: ${playersHere.map((p) => `<span style="color:${p.color}">${p.name}</span>`).join(', ')}`;
+    html += `Players here: ${playersHere.map((p) => `<span style="color:${escapeHtml(p.color)}">${escapeHtml(p.name)}</span>`).join(', ')}`;
     html += '</div>';
   }
 
   el.spaceInspector.innerHTML = html;
+}
+
+function inspectSpace(idx) {
+  inspectedIdx = idx;
+  renderInspector();
   renderBoard();
+}
+
+function refreshInspector() {
+  renderInspector();
 }
 
 // ─── MOTION & FX ───
@@ -1094,10 +1148,17 @@ function toggleMotion() {
 }
 
 function toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
+  const root = document.documentElement;
+  const enter = root.requestFullscreen || root.webkitRequestFullscreen;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  if (!enter || !exit) {
+    showToast('Fullscreen not supported on this device', 'info');
+    return;
+  }
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    enter.call(root).catch(() => {});
   } else {
-    document.exitFullscreen().catch(() => {});
+    exit.call(document).catch(() => {});
   }
 }
 
@@ -1216,16 +1277,22 @@ el.rulesBtn.addEventListener('click', () => el.rulesModal.showModal());
 el.rulesClose.addEventListener('click', () => el.rulesModal.close());
 
 document.addEventListener('keydown', (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
   const target = event.target;
   if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+  if (target instanceof HTMLElement && target.isContentEditable) return;
   if (el.modal.open || el.rulesModal.open) return;
-  if (event.key.toLowerCase() === 'r' && !el.rollBtn.disabled) takeTurn();
-  if (event.key.toLowerCase() === 'e' && !el.endBtn.disabled) endTurn();
+  const key = event.key.toLowerCase();
+  if (key === 'r' && !el.rollBtn.disabled) { event.preventDefault(); takeTurn(); }
+  else if (key === 'e' && !el.endBtn.disabled) { event.preventDefault(); endTurn(); }
 });
 
-document.addEventListener('fullscreenchange', () => {
-  el.fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
-});
+const onFullscreenChange = () => {
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  el.fullscreenBtn.textContent = isFs ? 'Exit Fullscreen' : 'Fullscreen';
+};
+document.addEventListener('fullscreenchange', onFullscreenChange);
+document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 
 // ─── INIT ───
 initNameInputs();
@@ -1234,3 +1301,12 @@ bindSpatialMotion();
 startFxScene();
 renderHud();
 if (!loadSavedGame()) setTurnPill('Setup', '#64748b');
+
+// Initialize AudioContext on first user gesture so SFX work without toggling ambient.
+const primeAudio = () => {
+  ensureAudio();
+  window.removeEventListener('pointerdown', primeAudio);
+  window.removeEventListener('keydown', primeAudio);
+};
+window.addEventListener('pointerdown', primeAudio, { once: true });
+window.addEventListener('keydown', primeAudio, { once: true });
