@@ -35,22 +35,27 @@ checks.push({
   label: `Chance deck has at least 10 cards (found ${Array.isArray(CHANCE) ? CHANCE.length : 'invalid'})`,
 });
 
-const requiredIds = [
+const htmlIds = [
   'startBtn',
   'rollBtn',
   'endBtn',
   'board',
   'playersPanel',
   'spaceInspector',
-  'dieOne',
-  'dieTwo',
   'rollTotal',
   'fullscreenBtn',
 ];
 
+const jsGeneratedIds = ['dieOne', 'dieTwo'];
+
 checks.push({
-  ok: requiredIds.every((id) => html.includes(`id="${id}"`)),
+  ok: htmlIds.every((id) => html.includes(`id="${id}"`)),
   label: 'Critical UI IDs exist in index.html',
+});
+
+checks.push({
+  ok: jsGeneratedIds.every((id) => js.includes(`'${id}'`)),
+  label: 'JS-generated element IDs exist in script.js',
 });
 
 const failed = checks.filter((c) => !c.ok);
