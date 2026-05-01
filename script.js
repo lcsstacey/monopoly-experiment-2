@@ -463,6 +463,9 @@ function renderPlayers() {
     const initial = p.name.charAt(0).toUpperCase();
     const isActive = p.id === state.current && !state.gameOver;
 
+    const ownedColors = [...new Set(p.properties.map((idx) => BOARD[idx].color).filter(Boolean))];
+    const colorDots = ownedColors.map((c) => `<span class="prop-dot" style="background:${c}"></span>`).join('');
+
     const card = document.createElement('div');
     card.className = `player-card${isActive ? ' active' : ''}${p.bankrupt ? ' bankrupt' : ''}`;
     card.innerHTML = `
@@ -471,10 +474,10 @@ function renderPlayers() {
         <div class="player-info">
           <div class="player-name">${p.name}${p.bankrupt ? ' (Out)' : ''}</div>
           <div class="player-stats">
-            <span>$${p.cash}</span>
-            <span>${p.properties.length} props</span>
-            <span>$${nw} net</span>
+            <span><span class="stat-label">Cash</span> $${p.cash}</span>
+            <span><span class="stat-label">Net</span> $${nw}</span>
           </div>
+          ${colorDots ? `<div class="prop-dots">${colorDots}</div>` : ''}
         </div>
         <div class="player-rank" style="${isActive ? 'color:var(--gold)' : ''}">#${rank + 1}</div>
       </div>
